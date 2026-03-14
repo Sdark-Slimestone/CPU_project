@@ -1,0 +1,29 @@
+DEBUG tests/cputest_tests.c:300: ----- RUNNING: ./tests/cputest_tests
+DEBUG tests/cputest_tests.c:285: 
+----- test_init_ram
+[INFO] (src/lcthw/architecture.c:41:init_ram) RAM 加载完成
+DEBUG tests/cputest_tests.c:286: 
+----- test_init_rom
+[INFO] (src/lcthw/architecture.c:82:init_rom) ROM 加载完成
+[INFO] (src/lcthw/architecture.c:92:init_rom) 已在 ROM 字地址 1158（字节地址 0x1218）写入 ebreak 指令（机器码：0x100073）
+DEBUG tests/cputest_tests.c:287: 
+----- test_ram_read_write
+[ERROR] (src/lcthw/architecture.c:124:write_ram: errno: None) RAM 地址越界: 262144 (最大: 262143)
+[ERROR] (src/lcthw/architecture.c:114:read_ram: errno: None) RAM 地址越界: 262144 (最大: 262143)
+DEBUG tests/cputest_tests.c:288: 
+----- test_rom_read
+[ERROR] (src/lcthw/architecture.c:133:read_rom: errno: None) ROM 地址越界: 262144 (最大: 262143)
+DEBUG tests/cputest_tests.c:289: 
+----- test_decode_add
+DEBUG tests/cputest_tests.c:290: 
+----- test_decode_addi
+DEBUG tests/cputest_tests.c:291: 
+----- test_decode_lui
+DEBUG tests/cputest_tests.c:292: 
+----- test_decode_lw
+DEBUG tests/cputest_tests.c:293: 
+----- test_decode_sw
+DEBUG tests/cputest_tests.c:294: 
+----- test_decode_jalr
+DEBUG tests/cputest_tests.c:295: 
+----- test_decode_unknown
