@@ -14,12 +14,12 @@ cpu_project/
 ├── MyChisel/ # Chisel 源代码，生成 Verilog
 │ └── verilog/ # 生成的 .sv 文件
 ├── nvboard/myexample/ # NVBoard 仿真工程
-│ ├── vsrc/ # 放 Verilog 文件（自动复制过来）
+│  vsrc/ # 放 Verilog 文件（自动复制过来）
 │ ├── constr/ # 放 top.nxdc 引脚绑定文件
 │ └── Makefile
-└── isa-emu/ # 指令集模拟器
-└── minirv/ # 例如一个叫 minirv 的模拟器
-├── Makefile
+├── isa-emu/ # 指令集模拟器
+│  ├── minirv/ # 例如一个叫 minirv 的模拟器,请阅读里面的readme
+│  └──bin/ #二进制文件
 └── ...
 
 
