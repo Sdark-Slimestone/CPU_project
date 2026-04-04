@@ -58,7 +58,7 @@ $(TESTS): %: %.c $(TARGET)
 # 核心修正2：测试目标添加LD_LIBRARY_PATH（解决运行时找不到动态库）
 .PHONY: tests
 tests: $(TARGET) $(TESTS)
-	LD_LIBRARY_PATH=./build python3 /home/sdark/cpu_project/isa-emu/minirv/py/runtests.py
+	LD_LIBRARY_PATH=./build python3 ./py/runtests.py
 
 # valgrind内存检测（可选）
 valgrind:
