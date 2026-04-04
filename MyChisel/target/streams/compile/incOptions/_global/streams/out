@@ -1,0 +1,25 @@
+[0m[[0m[0mdebug[0m] [0m[0mCreated transactional ClassFileManager with tempDir = /home/sdark/cpu_project/MyChisel/target/scala-2.13/classes.bak[0m
+[0m[[0m[0mdebug[0m] [0m[0mAbout to delete class files:[0m
+[0m[[0m[0mdebug[0m] [0m[0mWe backup class files:[0m
+[0m[[0m[0mdebug[0m] [0m[0mCreated transactional ClassFileManager with tempDir = /home/sdark/cpu_project/MyChisel/target/scala-2.13/classes.bak[0m
+[0m[[0m[0mdebug[0m] [0m[0mAbout to delete class files:[0m
+[0m[[0m[0mdebug[0m] [0m[0mWe backup class files:[0m
+[0m[[0m[0mdebug[0m] [0m[0mRegistering generated classes:[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Comparator.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	IDU.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	SCPU$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	PC$$anon$2.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Adder8bit$$anon$1.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	ROM$$anon$6.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	GRF.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	top$$anon$7.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	IDU$$anon$5.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	top.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	SCPU.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	ROM.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	GRF$$anon$3.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	SCPU$delayedInit$body.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Adder8bit.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Comparator$$anon$4.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	PC.class[0m
+[0m[[0m[0mdebug[0m] [0m[0mRemoving the temporary directory used for backing up class files: /home/sdark/cpu_project/MyChisel/target/scala-2.13/classes.bak[0m
