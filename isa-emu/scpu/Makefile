@@ -1,7 +1,7 @@
 # 用户配置
-MAIN_SRC = src/lcthw/minirv.c     # 主程序源文件路径
-EXECUTABLE = minirv                # 可执行文件名
-TARGET_LIB = minirv.a              # 静态库名
+MAIN_SRC = src/lcthw/scpu.c     # 主程序源文件路径
+EXECUTABLE = scpu                # 可执行文件名
+TARGET_LIB = scpu.a              # 静态库名
 SO_TARGET_LIB = $(TARGET_LIB:.a=.so) # 动态库名
 
 OPTFLAGS ?=
@@ -47,7 +47,7 @@ $(TESTS): %: %.c $(TARGET)
 	$(CC) $(CFLAGS) $< -o $@ $(TARGET) -ldl
 
 tests: $(TARGET) $(TESTS)
-	LD_LIBRARY_PATH=./build python3 ./py/runtests.py
+	@echo "No tests for scpu"
 
 clean:
 	rm -rf build $(OBJECTS) $(TESTS)

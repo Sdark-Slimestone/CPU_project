@@ -77,16 +77,8 @@ void decoder(uint8_t instruction) {
     }
 }
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        printf("用法: %s <n>\n", argv[0]);
-        return 1;
-    }
-    int n = atoi(argv[1]);
-    if (n < 0 || n > 255) {
-        printf("n 必须在 0~255 之间\n");
-        return 1;
-    }
+int main(void) {
+    int n = 10;
     R[0] = (uint8_t)n;  // 将命令行参数存入 R0
 
     uint8_t instemp;
