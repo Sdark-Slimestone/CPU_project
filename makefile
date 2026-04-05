@@ -1,3 +1,6 @@
+# 定义 sv2v 
+SV2V := ./sv2v                    
+
 # 子目录路径（相对于当前目录）
 CHISEL_DIR = MyChisel
 NVBOARD_DIR = nvboard/myexample
@@ -43,6 +46,15 @@ prepare-vsrc:
 	cp -r $(CHISEL_VERILOG_DIR)/* $(NVBOARD_VSRC_DIR)/
 	@echo "运行 autonv.py 生成 top.nxdc ..."
 	python3 autonv.py
+	@echo "使用 sv2v 转换 $(NVBOARD_VSRC_DIR) 中的 .sv 文件并替换原文件 ..."
+	for f in $(NVBOARD_VSRC_DIR)/*.sv; do \
+		if [ -f "$$f" ]; then \
+			./sv2v "$$f" > "$${f%.sv}.v"; \
+			echo "转换: $$f -> $${f%.sv}.v"; \
+			rm -f "$$f"; \
+			echo "删除原文件: $$f"; \
+		fi; \
+	done
 
 
 # 聚合目标（推荐使用）
@@ -53,7 +65,7 @@ prepare-vsrc:
 all: genv prepare-vsrc run-nvboard
 
 # 同时清理两个子模块
-clean: clean-chisel clean-nvboard
+clean: clean-chisel clean-nvboard yosys-clean
 
 # 直接运行仿真（前提是已经准备好 vsrc 并构建过）
 run: run-nvboard
@@ -88,3 +100,24 @@ run-emu: emu
 test-emu: emu
 	$(MAKE) -C $(ISA_EMU_PATH) tests   
 	rm -rf $(ISA_EMU_PATH)/bin
+
+
+
+# yosys-sta 集成（位于 yosys-sta copy 目录）
+YOSYS_STA_DIR = yosys-sta
+
+.PHONY: yosys-init yosys-syn yosys-sta yosys-clean
+
+yosys-init:
+	$(MAKE) -C "$(YOSYS_STA_DIR)" init
+
+yosys-syn:
+	cp -r $(NVBOARD_VSRC_DIR)/* "$(YOSYS_STA_DIR)/example"/
+	$(MAKE) -C "$(YOSYS_STA_DIR)" syn
+
+yosys-sta:
+	cp -r $(NVBOARD_VSRC_DIR)/* "$(YOSYS_STA_DIR)/example"/
+	$(MAKE) -C "$(YOSYS_STA_DIR)" sta
+
+yosys-clean:
+	$(MAKE) -C "$(YOSYS_STA_DIR)" clean

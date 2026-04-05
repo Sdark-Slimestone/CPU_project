@@ -46,5 +46,6 @@ run: $(BIN)
 
 clean:
 	rm -rf $(BUILD_DIR)
+	-rm -f ./vsrc/*.sv ./vsrc/*.v
 
 .PHONY: default all clean run
