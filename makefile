@@ -33,7 +33,7 @@ run-nvboard:
 clean-nvboard:
 	$(MAKE) -C $(NVBOARD_DIR) clean
 
-# 自定义操作：复制 Verilog 并运行自动绑定脚本
+# 自定义操作：复制 Verilog 并运行自动绑定脚本（用于 nvboard）
 .PHONY: prepare-vsrc
 prepare-vsrc:
 	@echo "清空 $(NVBOARD_VSRC_DIR) ..."
@@ -45,10 +45,26 @@ prepare-vsrc:
 	@echo "使用 sv2v 转换 $(NVBOARD_VSRC_DIR) 中的 .sv 文件并替换原文件 ..."
 	for f in $(NVBOARD_VSRC_DIR)/*.sv; do \
 		if [ -f "$$f" ]; then \
-			./sv2v "$$f" > "$${f%.sv}.v"; \
+			$(SV2V) "$$f" > "$${f%.sv}.v"; \
 			echo "转换: $$f -> $${f%.sv}.v"; \
 			rm -f "$$f"; \
 			echo "删除原文件: $$f"; \
+		fi; \
+	done
+
+# 新增：准备 STA 需要的源文件（直接从 Chisel 目录复制并转换，不依赖 nvboard）
+.PHONY: prepare-sta-src
+prepare-sta-src: genv
+	@echo "准备 STA 源文件从 $(CHISEL_VERILOG_DIR) 到 $(YOSYS_STA_DIR)/example ..."
+	find $(YOSYS_STA_DIR)/example -maxdepth 1 -type f \( -name "*.v" -o -name "*.sv" \) -delete
+	@echo "复制 Verilog 文件..."
+	cp -r $(CHISEL_VERILOG_DIR)/* $(YOSYS_STA_DIR)/example/
+	@echo "转换 $(YOSYS_STA_DIR)/example 中的 .sv 文件为 .v ..."
+	for f in $(YOSYS_STA_DIR)/example/*.sv; do \
+		if [ -f "$$f" ]; then \
+			$(SV2V) "$$f" > "$${f%.sv}.v"; \
+			echo "转换: $$f -> $${f%.sv}.v"; \
+			rm -f "$$f"; \
 		fi; \
 	done
 
@@ -77,11 +93,12 @@ test-emu: emu
 .PHONY: yosys-init yosys-syn yosys-sta yosys-clean
 yosys-init:
 	$(MAKE) -C "$(YOSYS_STA_DIR)" init
-yosys-syn:
-	cp -r $(NVBOARD_VSRC_DIR)/* "$(YOSYS_STA_DIR)/example"/
+
+yosys-syn: prepare-sta-src
 	$(MAKE) -C "$(YOSYS_STA_DIR)" syn
-yosys-sta:
-	cp -r $(NVBOARD_VSRC_DIR)/* "$(YOSYS_STA_DIR)/example"/
+
+yosys-sta:  prepare-sta-src
 	$(MAKE) -C "$(YOSYS_STA_DIR)" sta
+
 yosys-clean:
 	$(MAKE) -C "$(YOSYS_STA_DIR)" clean

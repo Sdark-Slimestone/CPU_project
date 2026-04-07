@@ -98,7 +98,7 @@ class ROM extends Module {
 }
 
 // ==================== 顶层 top ====================
-class top extends Module {
+class scpu extends Module {
   val io = IO(new Bundle { 
     val clk = Input(Clock())
     val rst = Input(Bool())
@@ -190,7 +190,7 @@ class top extends Module {
 // ==================== 生成 Verilog ====================
 object SCPU extends App {
   ChiselStage.emitSystemVerilogFile(
-    new top,
+    new scpu,
     firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info", "-default-layer-specialization=enable")
   )
 }
