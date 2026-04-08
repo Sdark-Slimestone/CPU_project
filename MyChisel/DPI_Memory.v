@@ -9,7 +9,7 @@ module DPI_Memory (
     input        ebreak    // 新增：来自CPU的ebreak信号
 );
     // DPI-C函数声明，全部使用无符号类型
-    import "DPI-C" function unsigned int pmem_read(input int addr);
+    import "DPI-C" function int pmem_read(input int addr);
     import "DPI-C" function void pmem_write(input int addr, input int data, input byte mask);
     import "DPI-C" function void sim_finish();
 
@@ -19,7 +19,11 @@ module DPI_Memory (
     // 写操作和ebreak检测：组合逻辑
     always @(*) begin
         if (wen) begin
+            // verilator lint_off WIDTHEXPAND
+            $display("[DPI] wen=1, calling pmem_write(addr=0x%h, data=0x%h, mask=0x%h)", waddr, wdata, wmask);
+            $display("[DPI] WRITE: addr=0x%h, data=0x%h, mask=0x%h", waddr, wdata, wmask);
             pmem_write(waddr, wdata, wmask);
+            // verilator lint_on WIDTHEXPAND
         end
         if (ebreak) begin
             sim_finish();
