@@ -20,6 +20,8 @@ module DPI_Memory (
     always @(*) begin
         if (wen) begin
             // verilator lint_off WIDTHEXPAND
+            $display("[DPI] wen=1, calling pmem_write(addr=0x%h, data=0x%h, mask=0x%h)", waddr, wdata, wmask);
+            $display("[DPI] WRITE: addr=0x%h, data=0x%h, mask=0x%h", waddr, wdata, wmask);
             pmem_write(waddr, wdata, wmask);
             // verilator lint_on WIDTHEXPAND
         end
