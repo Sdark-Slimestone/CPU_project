@@ -1,5 +1,4 @@
 #include <verilated.h>
-#include <verilated_vcd_c.h>  // 若不需要波形可删除此行
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +15,6 @@ static int good_trap = 0;   // 1: 正常 ebreak 结束, 0: 异常结束
 extern "C" {
 #endif
 
-// 读内存：逻辑完全保持不变
 unsigned int pmem_read(unsigned int addr) {
     if (addr < MEM_BASE) return 0;
     unsigned int base = addr & ~3;
@@ -33,7 +31,6 @@ unsigned int pmem_read(unsigned int addr) {
     return word;
 }
 
-// 写内存：逻辑完全保持不变
 void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
     if (addr < MEM_BASE) return;
     unsigned int base = addr & ~3;
