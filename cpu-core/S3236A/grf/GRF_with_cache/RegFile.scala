@@ -23,22 +23,23 @@ class top extends Module {
     val flush        = Input(Bool())
   })
 
-  // 窗口上溢检测：winInc 且 winCode == 7
-  io.overflow := io.winInc && (io.winCode === 7.U)
-
-  // 窗口下溢检测：winDec 且 winCode == 0
+  // 窗口上溢/下溢检测
+  io.overflow  := io.winInc && (io.winCode === 7.U)
   io.underflow := io.winDec && (io.winCode === 0.U)
 
   val gReg   = Module(new GlobalRegFile8x3212R4W)
-  val cache  = Module(new WindowCache24x3212R12W)   // 12写口，符合8w5面积
-  val body0  = Module(new WindowBody30x322R1W)      // 每体2读，共8读
-  val body1  = Module(new WindowBody30x322R1W)
-  val body2  = Module(new WindowBody30x322R1W)
-  val body3  = Module(new WindowBody30x322R1W)
+  val cache  = Module(new WindowCache24x3212R12W)
+  val body0  = Module(new WindowBody30x322R4W)   // 注意：已改为 4 写口
+  val body1  = Module(new WindowBody30x322R4W)
+  val body2  = Module(new WindowBody30x322R4W)
+  val body3  = Module(new WindowBody30x322R4W)
 
   cache.io.flush := io.flush
 
-  //读通路：前8个读口（i=0~7）全功能
+  // 预计算 winCode * 16，供读写通路共享
+  val winCodeTimes16 = io.winCode * 16.U
+
+  // ========== 读通路：前8口全功能 ==========
   for (i <- 0 until 8) {
     val logAddr = io.readAddrs(i)
     val isGlobal = logAddr <= 7.U
@@ -47,8 +48,7 @@ class top extends Module {
     gReg.io.readAddrs(i) := logAddr(2,0)
     cache.io.readAddrs(i) := cacheIdx
 
-    // 重叠窗口物理地址：phyAddr = (winCode * 16 + logAddr) % 128
-    val phyAddrFull = (io.winCode * 16.U) + logAddr
+    val phyAddrFull = winCodeTimes16 + logAddr
     val phyAddr = phyAddrFull(6, 0)
 
     val winOffset = (phyAddr - 8.U) / 4.U
@@ -62,7 +62,7 @@ class top extends Module {
     val selBody2 = winSel === 2.U
     val selBody3 = winSel === 3.U
 
-    // 连接下层堆读地址
+    // 连接各体读地址（动态索引）
     body0.io.readAddrs(local) := Mux(bodyIdx === 0.U, winOffset(4,0), 0.U)
     body1.io.readAddrs(local) := Mux(bodyIdx === 1.U, winOffset(4,0), 0.U)
     body2.io.readAddrs(local) := Mux(bodyIdx === 2.U, winOffset(4,0), 0.U)
@@ -89,7 +89,7 @@ class top extends Module {
     cache.io.writeEnables(refillWp) := refillEn
   }
 
-  //读通路：后4个读口（i=8~11）仅Cache/全局，无回填
+  // ========== 读通路：后4口仅Cache/全局 ==========
   for (i <- 8 until 12) {
     val logAddr = io.readAddrs(i)
     val isGlobal = logAddr <= 7.U
@@ -105,7 +105,7 @@ class top extends Module {
     )
   }
 
-  //写通路
+  // ========== 写通路（修正：每个写口独立连接各体的第 j 个写口） ==========
   for (j <- 0 until 4) {
     val logAddr = io.writeAddrs(j)
     val wData   = io.writeDatas(j)
@@ -113,37 +113,44 @@ class top extends Module {
     val isGlobal = logAddr <= 7.U
     val cacheIdx = logAddr - 8.U
 
+    // 全局堆写
     gReg.io.writeAddrs(j)   := logAddr(2,0)
     gReg.io.writeDatas(j)   := wData
     gReg.io.writeEnables(j) := wEn && isGlobal
 
+    // Cache 写穿
     cache.io.writeAddrs(j)   := cacheIdx
     cache.io.writeDatas(j)   := wData
     cache.io.writeEnables(j) := wEn && !isGlobal
 
-    // 重叠窗口物理地址计算（与读通路一致）
-    val phyAddrFull = (io.winCode * 16.U) + logAddr
+    // 下层窗口堆写
+    val phyAddrFull = winCodeTimes16 + logAddr
     val phyAddr = phyAddrFull(6, 0)
     val winOffset = (phyAddr - 8.U) / 4.U
     val winSel    = (phyAddr - 8.U) % 4.U
 
-    val enBody0 = wEn && !isGlobal && (winSel === 0.U) && (j.U === 0.U)
-    val enBody1 = wEn && !isGlobal && (winSel === 1.U) && (j.U === 1.U)
-    val enBody2 = wEn && !isGlobal && (winSel === 2.U) && (j.U === 2.U)
-    val enBody3 = wEn && !isGlobal && (winSel === 3.U) && (j.U === 3.U)
+    // 使能仅由 winSel 决定，每个体独立判断
+    val enBody0 = wEn && !isGlobal && (winSel === 0.U)
+    val enBody1 = wEn && !isGlobal && (winSel === 1.U)
+    val enBody2 = wEn && !isGlobal && (winSel === 2.U)
+    val enBody3 = wEn && !isGlobal && (winSel === 3.U)
 
-    body0.io.writeAddrs(0)  := winOffset(4,0)
-    body0.io.writeDatas(0)  := wData
-    body0.io.writeEnables(0) := enBody0
-    body1.io.writeAddrs(0)  := winOffset(4,0)
-    body1.io.writeDatas(0)  := wData
-    body1.io.writeEnables(0) := enBody1
-    body2.io.writeAddrs(0)  := winOffset(4,0)
-    body2.io.writeDatas(0)  := wData
-    body2.io.writeEnables(0) := enBody2
-    body3.io.writeAddrs(0)  := winOffset(4,0)
-    body3.io.writeDatas(0)  := wData
-    body3.io.writeEnables(0) := enBody3
+    // 连接到各体的第 j 个写口（每个体现有 4 个写口）
+    body0.io.writeAddrs(j)  := winOffset(4,0)
+    body0.io.writeDatas(j)  := wData
+    body0.io.writeEnables(j) := enBody0
+
+    body1.io.writeAddrs(j)  := winOffset(4,0)
+    body1.io.writeDatas(j)  := wData
+    body1.io.writeEnables(j) := enBody1
+
+    body2.io.writeAddrs(j)  := winOffset(4,0)
+    body2.io.writeDatas(j)  := wData
+    body2.io.writeEnables(j) := enBody2
+
+    body3.io.writeAddrs(j)  := winOffset(4,0)
+    body3.io.writeDatas(j)  := wData
+    body3.io.writeEnables(j) := enBody3
   }
 }
 

@@ -74,10 +74,10 @@ class WindowCache24x3212R12W extends Module {
 }
 
 //窗口体
-class WindowBody30x322R1W extends Module {
+class WindowBody30x322R4W extends Module {
   val regCount = 30
   val readvec  = 2
-  val writevec = 1
+  val writevec = 4
   val addrwidth = 5
   val datawidth = 32
 
