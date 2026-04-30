@@ -1,21 +1,22 @@
-package minirv
+package rv32e
 
 import chisel3._
 import chisel3.util._
 
 class LSU extends Module {
   val io = IO(new Bundle {
-    // 控制信号
-    val lw   = Input(Bool())
-    val lbu  = Input(Bool())
-    val sw   = Input(Bool())
-    val sb   = Input(Bool())
+    val lb    = Input(Bool())
+    val lh    = Input(Bool())
+    val lw    = Input(Bool())
+    val lbu   = Input(Bool())
+    val lhu   = Input(Bool())
+    val sb    = Input(Bool())
+    val sh    = Input(Bool())
+    val sw    = Input(Bool())
 
-    // 地址和数据
-    val addr  = Input(UInt(32.W))   // 来自 AGU 的计算结果
-    val wdata = Input(UInt(32.W))   // 来自 rs2
+    val addr  = Input(UInt(32.W))
+    val wdata = Input(UInt(32.W))      // rs2 原始数据
 
-    // 与数据存储器的接口（顶层连接 DMEM）
     val dmemAddr  = Output(UInt(32.W))
     val dmemWen   = Output(Bool())
     val dmemWdata = Output(UInt(32.W))
@@ -23,30 +24,46 @@ class LSU extends Module {
     val dmemRen   = Output(Bool())
     val dmemRdata = Input(UInt(32.W))
 
-    // 输出给 WBU 的读数据
     val rdata = Output(UInt(32.W))
   })
 
-  // 默认值
-  io.dmemAddr  := io.addr
-  io.dmemWdata := io.wdata
-  io.dmemWen   := io.sw || io.sb
-  io.dmemRen   := io.lw || io.lbu
-
-  // 写掩码生成
   val lower2 = io.addr(1, 0)
+
+  // 读写使能：store 指令不再需要提前读内存（所有合并逻辑移入仿真）
+  io.dmemWen := io.sb || io.sh || io.sw
+  io.dmemRen := io.lb || io.lh || io.lw || io.lbu || io.lhu   // 仅 load 才读
+  io.dmemAddr := io.addr
+
+  // 写掩码生成（与 minirv 一致）
   io.dmemWmask := MuxCase(0.U(4.W), Seq(
-    io.sw -> "b1111".U,
-    io.sb -> (1.U << lower2)
+    io.sw -> "b1111".U(4.W),
+    io.sh -> Mux(lower2(1), "b1100".U(4.W), "b0011".U(4.W)),
+    io.sb -> (1.U(4.W) << lower2)
   ))
 
-  // 读数据处理：从 32 位对齐数据中提取需要的字节/字
-  val alignedData = io.dmemRdata  
-  val byteSel = io.addr(1, 0)  //取地址低两位得知需要哪个字节
-  val byteData = ((alignedData >> (byteSel << 3)) & 0xFF.U)   //bytesel x 8 = 实际需要右移的位数 ，移动完就高位清0
+  // 写数据：直接传递原始 rs2 数据（不移位）
+  io.dmemWdata := io.wdata
+
+  // ---------- 读数据通路（与原先相同） ----------
+  val aligned = io.dmemRdata
+  val byte0 = aligned(7,0)
+  val byte1 = aligned(15,8)
+  val byte2 = aligned(23,16)
+  val byte3 = aligned(31,24)
+  val half0 = Cat(byte1, byte0)
+  val half1 = Cat(byte3, byte2)
+
+  val byte_sel = Mux(lower2(1),
+    Mux(lower2(0), byte3, byte2),
+    Mux(lower2(0), byte1, byte0)
+  )
+  val half_sel = Mux(lower2(1), half1, half0)
 
   io.rdata := MuxCase(0.U(32.W), Seq(
-    io.lw  -> alignedData,
-    io.lbu -> byteData
+    io.lw   -> aligned,
+    io.lh   -> Cat(Fill(16, half_sel(15)), half_sel),
+    io.lhu  -> Cat(0.U(16.W), half_sel),
+    io.lb   -> Cat(Fill(24, byte_sel(7)), byte_sel),
+    io.lbu  -> Cat(0.U(24.W), byte_sel)
   ))
 }

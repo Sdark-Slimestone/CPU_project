@@ -8,7 +8,6 @@ InputMUXforALU.sv
 ALU.sv
 InputMUXforAGU.sv
 AGU.sv
-InputMUXforBRU.sv
 BRU.sv
 EXU.sv
 LSU.sv

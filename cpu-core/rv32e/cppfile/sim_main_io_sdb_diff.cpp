@@ -21,10 +21,6 @@ static int simulation_finished = 0;
 static int good_trap = 0;
 static int user_quit = 0;           // 用户主动退出标志
 
-#define MAX_WRITES 64
-static uint32_t written_addrs[MAX_WRITES];
-static int written_count = 0;
-
 
 // 声明 difftest 接口
 extern "C" {
@@ -50,6 +46,19 @@ static unsigned long long cycle = 0;
 // 保存执行前的 PC 和指令（用于输出反汇编和监视点触发时的正确地址）
 static uint32_t pc_before = 0;
 static uint32_t inst_before = 0;
+static uint32_t lw_before = 0;
+static uint32_t lbu_before = 0;
+static uint32_t add_before = 0;
+static uint32_t addi_before = 0;
+static uint32_t jalr_before = 0;
+static uint32_t sw_before = 0;
+static uint32_t sb_before = 0;
+static uint32_t lui_before = 0;
+
+static uint32_t writeback_before = 0; 
+static uint32_t io_debug_lsu_rdata_before = 0; 
+static uint32_t io_debug_lsu_addr_before = 0;
+static uint32_t io_debug_lsu_wdata_before = 0;
 
 // Capstone 反汇编句柄
 static csh capstone_handle = 0;
@@ -107,11 +116,6 @@ void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
     for (int i = 0; i < 4; i++) {
         if (mask & (1 << i)) {
             mem[offset + i] = is_byte ? (data & 0xFF) : ((data >> (i * 8)) & 0xFF);
-            // 记录这个写入地址（每个字节单独记录）
-            if (written_count < MAX_WRITES) {
-                written_addrs[written_count++] = addr + i;
-            }
-            // 如果超过记录容量，比较粗暴的做法是 assert(0) 或扩大 MAX_WRITES
         }
     }
 }
@@ -180,6 +184,11 @@ static void print_debug_info() {
     char disasm[128];
     disassemble_instruction(pc_before, inst_before, disasm, sizeof(disasm));
     printf("Instruction: %s\n", disasm);
+    printf("lw=%d,lbu=%d,add=%d,addi=%d,sw=%d,sb=%d,jalr=%d,lui=%d\n", lw_before, lbu_before,add_before,addi_before,sw_before,sb_before,jalr_before,lui_before);
+    printf("Writebackdata= 0x%08x\n",writeback_before);
+    printf("lsu_read_data = 0x%08x\n", io_debug_lsu_rdata_before);
+    printf("lsu_addr = 0x%08x\n", io_debug_lsu_addr_before);
+    printf("lsu_write_data = 0x%08x\n", io_debug_lsu_wdata_before);
     printf("\n");
 }
 
@@ -190,6 +199,20 @@ static int exec_one_cycle() {
     // 记录执行前的状态
     pc_before = top->io_debug_pc;
     inst_before = top->io_debug_inst;
+
+    lw_before = top->io_debug_is_lw;
+    lbu_before = top->io_debug_is_lbu;
+    add_before = top->io_debug_is_add;
+    addi_before = top->io_debug_is_addi;
+    jalr_before = top->io_debug_is_jalr;
+    sw_before = top->io_debug_is_sw;
+    sb_before = top->io_debug_is_sb;
+    lui_before = top->io_debug_is_lui;
+
+    writeback_before = top->io_debug_wbData;
+    io_debug_lsu_rdata_before = top->io_debug_lsu_rdata;
+    io_debug_lsu_addr_before = top->io_debug_lsu_addr;
+    io_debug_lsu_wdata_before = top->io_debug_lsu_wdata;
 
 
 
@@ -224,24 +247,6 @@ static int exec_one_cycle() {
     }
     
     //============================状态对比======================
-
-    // ---------------- 对比本周期写入过的内存地址 ----------------
-    for (int i = 0; i < written_count; i++) {
-        uint32_t addr = written_addrs[i];
-        uint32_t off = addr - MEM_BASE;
-        if (off < MEM_SIZE) {
-            uint8_t npc_val = mem[off];
-            uint8_t nemu_val = 0;
-            difftest_memcpy(addr, &nemu_val, 1, DIFFTEST_TO_DUT);
-            if (npc_val != nemu_val) {
-                printf("\n[MEM MISMATCH] cycle %llu, addr 0x%08x, NPC 0x%02x, NEMU 0x%02x\n",
-                       cycle, addr, npc_val, nemu_val);
-                print_debug_info();
-                assert(0);
-            }
-        }
-    }
-    written_count = 0;   // 清空记录，准备下一周期
 
     if (check_watchpoints()) {
         watchpoint_hit = 1;

@@ -9,8 +9,8 @@
 #include <stdint.h> 
 #include <assert.h>
 #include <capstone/capstone.h>   // 新增 Capstone 反汇编库
-#include "/home/sdark/ysyx-workbench/nemu/include/difftest-def.h"
 
+#define ARRLEN(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define panic(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while(0)
 typedef uint32_t word_t;
 #define MEM_BASE 0x80000000
@@ -20,23 +20,6 @@ static unsigned char mem[MEM_SIZE];
 static int simulation_finished = 0;
 static int good_trap = 0;
 static int user_quit = 0;           // 用户主动退出标志
-
-#define MAX_WRITES 64
-static uint32_t written_addrs[MAX_WRITES];
-static int written_count = 0;
-
-
-// 声明 difftest 接口
-extern "C" {
-    void difftest_init();
-    void difftest_memcpy(unsigned int addr, void *buf, size_t n, int direction);
-    void difftest_regcpy(void *dut, int direction);
-    void difftest_exec(unsigned long long n);
-}
-
-
-#define DIFFTEST_TO_REF   1   // NPC -> NEMU
-#define DIFFTEST_TO_DUT   0   // NEMU -> NPC
 
 // 仿真启动时刻
 static auto boot_time = std::chrono::steady_clock::now();
@@ -107,11 +90,6 @@ void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
     for (int i = 0; i < 4; i++) {
         if (mask & (1 << i)) {
             mem[offset + i] = is_byte ? (data & 0xFF) : ((data >> (i * 8)) & 0xFF);
-            // 记录这个写入地址（每个字节单独记录）
-            if (written_count < MAX_WRITES) {
-                written_addrs[written_count++] = addr + i;
-            }
-            // 如果超过记录容量，比较粗暴的做法是 assert(0) 或扩大 MAX_WRITES
         }
     }
 }
@@ -191,57 +169,9 @@ static int exec_one_cycle() {
     pc_before = top->io_debug_pc;
     inst_before = top->io_debug_inst;
 
-
-
     top->clock = 0; top->eval();
     top->clock = 1; top->eval();
     cycle++;
-
-    //========================状态对比=========================
-    difftest_exec(1);   
-
-    uint32_t nemu_state[17];   // 前16个是GPR
-    difftest_regcpy(nemu_state, DIFFTEST_TO_DUT);
-
-    uint32_t npc_regs[16] = {
-        top->io_debug_regs_0,  top->io_debug_regs_1,
-        top->io_debug_regs_2,  top->io_debug_regs_3,
-        top->io_debug_regs_4,  top->io_debug_regs_5,
-        top->io_debug_regs_6,  top->io_debug_regs_7,
-        top->io_debug_regs_8,  top->io_debug_regs_9,
-        top->io_debug_regs_10, top->io_debug_regs_11,
-        top->io_debug_regs_12, top->io_debug_regs_13,
-        top->io_debug_regs_14, top->io_debug_regs_15
-    };
-
-    for (int i = 0; i < 16; i++) {
-        if (npc_regs[i] != nemu_state[i]) {
-            printf("\n[DIFFTEST] Register mismatch at cycle %llu\n", cycle);
-            printf("Reg[%d]: NPC = 0x%08x, NEMU = 0x%08x\n", i, npc_regs[i], nemu_state[i]);
-            print_debug_info();
-            assert(0);
-        }
-    }
-    
-    //============================状态对比======================
-
-    // ---------------- 对比本周期写入过的内存地址 ----------------
-    for (int i = 0; i < written_count; i++) {
-        uint32_t addr = written_addrs[i];
-        uint32_t off = addr - MEM_BASE;
-        if (off < MEM_SIZE) {
-            uint8_t npc_val = mem[off];
-            uint8_t nemu_val = 0;
-            difftest_memcpy(addr, &nemu_val, 1, DIFFTEST_TO_DUT);
-            if (npc_val != nemu_val) {
-                printf("\n[MEM MISMATCH] cycle %llu, addr 0x%08x, NPC 0x%02x, NEMU 0x%02x\n",
-                       cycle, addr, npc_val, nemu_val);
-                print_debug_info();
-                assert(0);
-            }
-        }
-    }
-    written_count = 0;   // 清空记录，准备下一周期
 
     if (check_watchpoints()) {
         watchpoint_hit = 1;
@@ -1003,13 +933,6 @@ int main(int argc, char **argv) {
         return 1;
     }
     load_program(argv[1], MEM_BASE);
-
-    difftest_init();                                            // 初始化 NEMU
-
-    difftest_memcpy(MEM_BASE, mem, MEM_SIZE, DIFFTEST_TO_REF);  // 同步内存
-    unsigned int init_regs[17] = {0};                           // 16个GPR + PC
-    init_regs[16] = MEM_BASE;                                   // 初始 PC
-    difftest_regcpy(init_regs, DIFFTEST_TO_REF);                // 同步寄存器
 
     // 初始化 Capstone 反汇编引擎
     if (cs_open(CS_ARCH_RISCV, CS_MODE_RISCV32, &capstone_handle) != CS_ERR_OK) {

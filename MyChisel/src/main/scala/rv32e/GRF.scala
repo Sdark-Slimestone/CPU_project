@@ -1,4 +1,4 @@
-package minirv
+package rv32e
 
 import chisel3._
 import _root_.circt.stage.ChiselStage

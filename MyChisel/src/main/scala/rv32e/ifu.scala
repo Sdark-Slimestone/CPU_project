@@ -1,32 +1,28 @@
-package minirv
+package rv32e
 
 import chisel3._
 import chisel3.util._
 
 class IFU extends Module {
   val io = IO(new Bundle {
-    // 来自执行单元的跳转控制
-    val jalr         = Input(Bool())           // jalr 指令有效
-    val inputfromBRU = Input(UInt(32.W))       // 跳转目标地址（来自 BRU）
-
-    // 与指令存储器接口
-    val imemAddr = Output(UInt(32.W))
-    val inst     = Input(UInt(32.W))
-
-    // 提供给 GRF 的 PC+4（用于 jalr 写回）
-    val pctogrf  = Output(UInt(32.W))
-    val debug_pc = Output(UInt(32.W))
+    val take_branch   = Input(Bool())
+    val branch_target = Input(UInt(32.W))
+    val is_ebreak     = Input(Bool())         // 新增
+    val imemAddr      = Output(UInt(32.W))
+    val inst          = Input(UInt(32.W))
+    val pctogrf       = Output(UInt(32.W))
+    val debug_pc      = Output(UInt(32.W))
+    val current_pc    = Output(UInt(32.W))
   })
 
-  val pcReg = RegInit("h80000000".U(32.W))
-  val currentPc = pcReg
-  val currentPcPlus4 = currentPc + 4.U
+  val pcReg   = RegInit("h80000000".U(32.W))
+  val pcPlus4 = pcReg + 4.U
 
-  // 更新 PC：跳转时用 BRU 的目标地址，否则顺序执行 PC+4
-  pcReg := Mux(io.jalr, io.inputfromBRU, currentPcPlus4)
+  pcReg := Mux(io.is_ebreak, pcReg,
+            Mux(io.take_branch, io.branch_target, pcPlus4))
 
-  // 输出当前 PC 用于取指，以及当前 PC+4 用于写回
-  io.imemAddr := currentPc
-  io.pctogrf := currentPcPlus4
-  io.debug_pc := pcReg
+  io.imemAddr   := pcReg
+  io.current_pc := pcReg
+  io.pctogrf    := pcPlus4
+  io.debug_pc   := pcReg
 }
