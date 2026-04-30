@@ -8,9 +8,9 @@
 #include <regex.h> 
 #include <stdint.h> 
 #include <assert.h>
-#include <capstone/capstone.h>   // 新增 Capstone 反汇编库
-#include "/home/sdark/ysyx-workbench/nemu/include/difftest-def.h"
+#include <capstone/capstone.h>
 
+#define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 #define panic(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while(0)
 typedef uint32_t word_t;
 #define MEM_BASE 0x80000000
@@ -21,18 +21,6 @@ static int simulation_finished = 0;
 static int good_trap = 0;
 static int user_quit = 0;           // 用户主动退出标志
 
-
-// 声明 difftest 接口
-extern "C" {
-    void difftest_init();
-    void difftest_memcpy(unsigned int addr, void *buf, size_t n, int direction);
-    void difftest_regcpy(void *dut, int direction);
-    void difftest_exec(unsigned long long n);
-}
-
-
-#define DIFFTEST_TO_REF   1   // NPC -> NEMU
-#define DIFFTEST_TO_DUT   0   // NEMU -> NPC
 
 // 仿真启动时刻
 static auto boot_time = std::chrono::steady_clock::now();
@@ -46,6 +34,19 @@ static unsigned long long cycle = 0;
 // 保存执行前的 PC 和指令（用于输出反汇编和监视点触发时的正确地址）
 static uint32_t pc_before = 0;
 static uint32_t inst_before = 0;
+static uint32_t lw_before = 0;
+static uint32_t lbu_before = 0;
+static uint32_t add_before = 0;
+static uint32_t addi_before = 0;
+static uint32_t jalr_before = 0;
+static uint32_t sw_before = 0;
+static uint32_t sb_before = 0;
+static uint32_t lui_before = 0;
+
+static uint32_t writeback_before = 0; 
+static uint32_t io_debug_lsu_rdata_before = 0; 
+static uint32_t io_debug_lsu_addr_before = 0;
+static uint32_t io_debug_lsu_wdata_before = 0;
 
 // Capstone 反汇编句柄
 static csh capstone_handle = 0;
@@ -86,9 +87,6 @@ unsigned int pmem_read(unsigned int addr) {
 
 // DPI-C 可调用函数：内存写
 void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
-
-    //printf("[PMEM_WRITE] cycle=%llu addr=0x%08x data=0x%08x mask=0x%02x\n", cycle, addr, data, mask);
-
     if (addr == 0x10000000) {  // 串口输出
         if (mask & 0x1) {
             putchar((char)(data & 0xFF));
@@ -171,6 +169,11 @@ static void print_debug_info() {
     char disasm[128];
     disassemble_instruction(pc_before, inst_before, disasm, sizeof(disasm));
     printf("Instruction: %s\n", disasm);
+    printf("lw=%d,lbu=%d,add=%d,addi=%d,sw=%d,sb=%d,jalr=%d,lui=%d\n", lw_before, lbu_before,add_before,addi_before,sw_before,sb_before,jalr_before,lui_before);
+    printf("Writebackdata= 0x%08x\n",writeback_before);
+    printf("lsu_read_data = 0x%08x\n", io_debug_lsu_rdata_before);
+    printf("lsu_addr = 0x%08x\n", io_debug_lsu_addr_before);
+    printf("lsu_write_data = 0x%08x\n", io_debug_lsu_wdata_before);
     printf("\n");
 }
 
@@ -182,39 +185,23 @@ static int exec_one_cycle() {
     pc_before = top->io_debug_pc;
     inst_before = top->io_debug_inst;
 
+    lw_before = top->io_debug_is_lw;
+    lbu_before = top->io_debug_is_lbu;
+    add_before = top->io_debug_is_add;
+    addi_before = top->io_debug_is_addi;
+    jalr_before = top->io_debug_is_jalr;
+    sw_before = top->io_debug_is_sw;
+    sb_before = top->io_debug_is_sb;
+    lui_before = top->io_debug_is_lui;
 
+    writeback_before = top->io_debug_wbData;
+    io_debug_lsu_rdata_before = top->io_debug_lsu_rdata;
+    io_debug_lsu_addr_before = top->io_debug_lsu_addr;
+    io_debug_lsu_wdata_before = top->io_debug_lsu_wdata;
 
     top->clock = 0; top->eval();
     top->clock = 1; top->eval();
     cycle++;
-
-    //========================状态对比=========================
-    difftest_exec(1);   
-
-    uint32_t nemu_state[17];   // 前16个是GPR
-    difftest_regcpy(nemu_state, DIFFTEST_TO_DUT);
-
-    uint32_t npc_regs[16] = {
-        top->io_debug_regs_0,  top->io_debug_regs_1,
-        top->io_debug_regs_2,  top->io_debug_regs_3,
-        top->io_debug_regs_4,  top->io_debug_regs_5,
-        top->io_debug_regs_6,  top->io_debug_regs_7,
-        top->io_debug_regs_8,  top->io_debug_regs_9,
-        top->io_debug_regs_10, top->io_debug_regs_11,
-        top->io_debug_regs_12, top->io_debug_regs_13,
-        top->io_debug_regs_14, top->io_debug_regs_15
-    };
-
-    for (int i = 0; i < 16; i++) {
-        if (npc_regs[i] != nemu_state[i]) {
-            printf("\n[DIFFTEST] Register mismatch at cycle %llu\n", cycle);
-            printf("Reg[%d]: NPC = 0x%08x, NEMU = 0x%08x\n", i, npc_regs[i], nemu_state[i]);
-            print_debug_info();
-            assert(0);
-        }
-    }
-    
-    //============================状态对比======================
 
     if (check_watchpoints()) {
         watchpoint_hit = 1;
@@ -976,13 +963,6 @@ int main(int argc, char **argv) {
         return 1;
     }
     load_program(argv[1], MEM_BASE);
-
-    difftest_init();                                            // 初始化 NEMU
-
-    difftest_memcpy(MEM_BASE, mem, MEM_SIZE, DIFFTEST_TO_REF);  // 同步内存
-    unsigned int init_regs[17] = {0};                           // 16个GPR + PC
-    init_regs[16] = MEM_BASE;                                   // 初始 PC
-    difftest_regcpy(init_regs, DIFFTEST_TO_REF);                // 同步寄存器
 
     // 初始化 Capstone 反汇编引擎
     if (cs_open(CS_ARCH_RISCV, CS_MODE_RISCV32, &capstone_handle) != CS_ERR_OK) {

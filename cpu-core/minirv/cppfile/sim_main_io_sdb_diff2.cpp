@@ -30,7 +30,7 @@ extern "C" {
     void difftest_exec(unsigned long long n);
 }
 
-
+static void print_debug_info();
 #define DIFFTEST_TO_REF   1   // NPC -> NEMU
 #define DIFFTEST_TO_DUT   0   // NEMU -> NPC
 
@@ -116,6 +116,19 @@ void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
     for (int i = 0; i < 4; i++) {
         if (mask & (1 << i)) {
             mem[offset + i] = is_byte ? (data & 0xFF) : ((data >> (i * 8)) & 0xFF);
+        }
+    }
+    //=========内存对比==========
+    if (addr != 0x10000000 && (addr < 0xa0000048 || addr > 0xa000004f)) {
+        uint32_t dut_val = pmem_read(base);               // 读取 DUT 对齐字
+        uint32_t nemu_val;
+        difftest_memcpy(base, &nemu_val, 4, DIFFTEST_TO_DUT); // 从 NEMU 读取
+        if (dut_val != nemu_val) {
+            printf("\n[MEM MISMATCH] after store: addr=0x%08x (aligned 0x%08x)\n", addr, base);
+            printf("DUT = 0x%08x, NEMU = 0x%08x\n", dut_val, nemu_val);
+            printf("PC = 0x%08x, INST = 0x%08x\n", pc_before, inst_before);
+            print_debug_info();
+            assert(0);
         }
     }
 }

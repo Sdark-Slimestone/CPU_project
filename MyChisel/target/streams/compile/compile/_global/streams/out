@@ -1,7 +1,0 @@
-[0m[[0m[33mwarn[0m] [0m[0m/home/sdark/cpu_project/MyChisel/src/main/scala/minirv/top.scala:8:25: class BlackBox in package chisel3 is deprecated (since 7.5.0): use `chisel3.ExtModule` instead. To migrate replace `val io = { ... }` with `val io = FlatIO { ... }`, `object io { ... }; locally { io }`, or manually flatten your IO as `ExtModule` allows calling `IO` more than once.[0m
-[0m[[0m[33mwarn[0m] [0m[0mclass DPIMemory extends BlackBox with HasBlackBoxResource {[0m
-[0m[[0m[33mwarn[0m] [0m[0m                        ^[0m
-[0m[[0m[33mwarn[0m] [0m[0m/home/sdark/cpu_project/MyChisel/src/main/scala/minirv/top.scala:8:39: trait HasBlackBoxResource in package util is deprecated (since 7.5.0): this trait will be removed in Chisel 8, please switch from `BlackBox` to `ExtModule` which has the methods of this trait already available[0m
-[0m[[0m[33mwarn[0m] [0m[0mclass DPIMemory extends BlackBox with HasBlackBoxResource {[0m
-[0m[[0m[33mwarn[0m] [0m[0m                                      ^[0m
-[0m[[0m[33mwarn[0m] [0m[0mtwo warnings found[0m
