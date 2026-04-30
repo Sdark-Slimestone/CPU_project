@@ -94,13 +94,17 @@ class idu extends Module {
     val is_lw     = Output(Bool())
     val is_sb     = Output(Bool())
     val is_sw     = Output(Bool())
-    val is_ebreak = Output(Bool())   
+    val is_ebreak = Output(Bool())   // <-- 新增 ebreak 输出
+
     // 操作数数值输出
     val rd    = Output(UInt(5.W))
     val rs1   = Output(UInt(5.W))
     val rs2   = Output(UInt(5.W))
     val imm20 = Output(UInt(32.W))
     val imm12 = Output(UInt(32.W))
+
+    //指令输出
+    val debug_inst = Output(UInt(32.W))
   })
 
   val instDecoder = Module(new InstructionDecoder)
@@ -134,4 +138,6 @@ class idu extends Module {
   io.rs2   := infoDecoder.io.rs2
   io.imm20 := infoDecoder.io.imm20
   io.imm12 := infoDecoder.io.imm12
+
+  io.debug_inst := io.inst
 }

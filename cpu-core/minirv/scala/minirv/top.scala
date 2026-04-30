@@ -7,6 +7,7 @@ import _root_.circt.stage.ChiselStage
 // 定义 DPI 内存黑盒，指定模块名
 class DPIMemory extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
+    val io_clk = Input(Clock()) 
     val wen   = Input(Bool())
     val waddr = Input(UInt(32.W))
     val wdata = Input(UInt(32.W))
@@ -49,6 +50,7 @@ class top extends Module {
     val debug_lsu_wmask = Output(UInt(4.W))
     val debug_lsu_ren   = Output(Bool())
     val debug_lsu_rdata = Output(UInt(32.W))   // 从内存读出的数据
+    val debug_inst = Output(UInt(32.W))
   })
 
   // 子模块实例化
@@ -61,6 +63,7 @@ class top extends Module {
 
   // 指令内存
   val instMem = Module(new DPIMemory)
+  instMem.io.io_clk := clock
   instMem.io.wen   := false.B
   instMem.io.waddr := 0.U
   instMem.io.wdata := 0.U
@@ -71,6 +74,7 @@ class top extends Module {
 
   // 数据内存
   val dataMem = Module(new DPIMemory)
+  dataMem.io.io_clk := clock
   dataMem.io.wen   := lsu.io.dmemWen
   dataMem.io.waddr := lsu.io.dmemAddr
   dataMem.io.wdata := lsu.io.dmemWdata
@@ -160,6 +164,8 @@ class top extends Module {
   io.debug_lsu_wmask := lsu.io.dmemWmask
   io.debug_lsu_ren   := lsu.io.dmemRen
   io.debug_lsu_rdata := lsu.io.dmemRdata 
+
+  io.debug_inst := idu.io.debug_inst
 }
 
 object top extends App {

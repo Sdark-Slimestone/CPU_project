@@ -41,9 +41,9 @@ class LSU extends Module {
   ))
 
   // 读数据处理：从 32 位对齐数据中提取需要的字节/字
-  val alignedData = io.dmemRdata
+  val alignedData = io.dmemRdata  
   val byteSel = io.addr(1, 0)  //取地址低两位得知需要哪个字节
-  val byteData = (alignedData >> (byteSel << 3)) & 0xFF.U  //bytesel x 8 = 实际需要右移的位数 ，移动完就高位清0
+  val byteData = ((alignedData >> (byteSel << 3)) & 0xFF.U)   //bytesel x 8 = 实际需要右移的位数 ，移动完就高位清0
 
   io.rdata := MuxCase(0.U(32.W), Seq(
     io.lw  -> alignedData,
