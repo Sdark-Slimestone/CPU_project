@@ -62,38 +62,22 @@ unsigned int pmem_read(unsigned int addr) {
 }
 
 void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
-    /*static int write_cnt = 0;     // 静态变量
-    if (write_cnt < 200) {
-        printf("[WRITE] addr=0x%08x data=0x%08x mask=0x%02x\n", addr, data, mask);
-        fflush(stdout);
-        write_cnt++;
-    }*/
-
-    // 串口 MMIO (地址 0x10000000)
-    if (addr == 0x10000000) {
+    if (addr == 0x10000000) {  // 串口输出
         if (mask & 0x1) {
-            char ch = (char)(data & 0xFF);
-            putchar(ch);
+            putchar((char)(data & 0xFF));
             fflush(stdout);
         }
         return;
     }
-    // 普通内存写入
     if (addr < MEM_BASE) return;
     unsigned int base = addr & ~3;
     unsigned int offset = base - MEM_BASE;
-    int is_byte = (mask == 0x1 || mask == 0x2 || mask == 0x4 || mask == 0x8);
-
     for (int i = 0; i < 4; i++) {
         if (mask & (1 << i)) {
-            if (is_byte) {
-                mem[offset + i] = data & 0xFF;
-            } else {
-                mem[offset + i] = (data >> (i * 8)) & 0xFF;
+            mem[offset + i] = (data >> (i * 8)) & 0xFF;
             }
         }
     }
-}
 
 // ebreak 回调，由 Verilog 模块通过 DPI-C 调用
 void sim_finish(void) {

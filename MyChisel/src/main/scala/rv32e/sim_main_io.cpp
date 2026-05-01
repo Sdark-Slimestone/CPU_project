@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <chrono>          // 用于获取系统时间
 #include "Vtop.h"
 
 #define MEM_BASE 0x80000000
@@ -11,11 +12,40 @@ static unsigned char mem[MEM_SIZE];
 static int simulation_finished = 0;
 static int good_trap = 0;   // 1: 正常 ebreak 结束, 0: 异常结束
 
+// 记录仿真启动时刻（微秒）
+static auto boot_time = std::chrono::steady_clock::now();
+
+// 获取从启动到现在的微秒数
+static uint64_t get_uptime_us() {
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::microseconds>(now - boot_time).count();
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 unsigned int pmem_read(unsigned int addr) {
+    /*static int read_cnt = 0;      // 静态变量，只初始化一次
+    if (read_cnt < 200) {
+        printf("[READ] addr=0x%08x\n", addr);
+        fflush(stdout);
+        read_cnt++;
+    }*/
+
+    // 时钟 MMIO (NEMU 兼容地址)
+    if (addr == 0xa0000048) {
+        uint64_t us = get_uptime_us();
+        //printf("[DEBUG] read RTC low addr=0x%x, us=%lu, ret=0x%x\n", addr, us, (unsigned int)us);
+        return (unsigned int)us;
+    }
+    if (addr == 0xa000004c) {
+        uint64_t us = get_uptime_us();
+        //printf("[DEBUG] read RTC high addr=0x%x, us=%lu, ret=0x%x\n", addr, us, (unsigned int)(us >> 32));
+        return (unsigned int)(us >> 32);
+    }
+
+    // 普通内存读取
     if (addr < MEM_BASE) return 0;
     unsigned int base = addr & ~3;
     unsigned int offset = base - MEM_BASE;
@@ -32,21 +62,22 @@ unsigned int pmem_read(unsigned int addr) {
 }
 
 void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
+    if (addr == 0x10000000) {  // 串口输出
+        if (mask & 0x1) {
+            putchar((char)(data & 0xFF));
+            fflush(stdout);
+        }
+        return;
+    }
     if (addr < MEM_BASE) return;
     unsigned int base = addr & ~3;
     unsigned int offset = base - MEM_BASE;
-    int is_byte = (mask == 0x1 || mask == 0x2 || mask == 0x4 || mask == 0x8);
-
     for (int i = 0; i < 4; i++) {
         if (mask & (1 << i)) {
-            if (is_byte) {
-                mem[offset + i] = data & 0xFF;
-            } else {
-                mem[offset + i] = (data >> (i * 8)) & 0xFF;
+            mem[offset + i] = (data >> (i * 8)) & 0xFF;
             }
         }
     }
-}
 
 // ebreak 回调，由 Verilog 模块通过 DPI-C 调用
 void sim_finish(void) {
@@ -108,7 +139,6 @@ int main(int argc, char **argv) {
 
     unsigned long long cycle = 0;
     while (!simulation_finished && !Verilated::gotFinish()) {
-        // 标准时钟周期：低 → 高
         top->clock = 0;
         top->eval();
         top->clock = 1;

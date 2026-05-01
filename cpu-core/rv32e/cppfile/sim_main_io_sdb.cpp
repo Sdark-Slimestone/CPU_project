@@ -73,9 +73,6 @@ unsigned int pmem_read(unsigned int addr) {
 
 // DPI-C 可调用函数：内存写
 void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
-
-    //printf("[PMEM_WRITE] cycle=%llu addr=0x%08x data=0x%08x mask=0x%02x\n", cycle, addr, data, mask);
-
     if (addr == 0x10000000) {  // 串口输出
         if (mask & 0x1) {
             putchar((char)(data & 0xFF));
@@ -86,13 +83,12 @@ void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
     if (addr < MEM_BASE) return;
     unsigned int base = addr & ~3;
     unsigned int offset = base - MEM_BASE;
-    int is_byte = (mask == 0x1 || mask == 0x2 || mask == 0x4 || mask == 0x8);
     for (int i = 0; i < 4; i++) {
         if (mask & (1 << i)) {
-            mem[offset + i] = is_byte ? (data & 0xFF) : ((data >> (i * 8)) & 0xFF);
+            mem[offset + i] = (data >> (i * 8)) & 0xFF;
+            }
         }
     }
-}
 
 // ebreak 回调
 void sim_finish(void) {

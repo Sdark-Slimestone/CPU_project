@@ -8,9 +8,9 @@
 #include <regex.h> 
 #include <stdint.h> 
 #include <assert.h>
-#include <capstone/capstone.h>
+#include <capstone/capstone.h>   // 新增 Capstone 反汇编库
+#include "/home/sdark/ysyx-workbench/nemu/include/difftest-def.h"
 
-#define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 #define panic(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while(0)
 typedef uint32_t word_t;
 #define MEM_BASE 0x80000000
@@ -21,6 +21,16 @@ static int simulation_finished = 0;
 static int good_trap = 0;
 static int user_quit = 0;           // 用户主动退出标志
 
+// 声明 difftest 接口
+extern "C" {
+    void difftest_init();
+    void difftest_memcpy(unsigned int addr, void *buf, size_t n, int direction);
+    void difftest_regcpy(void *dut, int direction);
+    void difftest_exec(unsigned long long n);
+}
+
+#define DIFFTEST_TO_REF   1   // NPC -> NEMU
+#define DIFFTEST_TO_DUT   0   // NEMU -> NPC
 
 // 仿真启动时刻
 static auto boot_time = std::chrono::steady_clock::now();
@@ -97,10 +107,12 @@ void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
     if (addr < MEM_BASE) return;
     unsigned int base = addr & ~3;
     unsigned int offset = base - MEM_BASE;
-    int is_byte = (mask == 0x1 || mask == 0x2 || mask == 0x4 || mask == 0x8);
     for (int i = 0; i < 4; i++) {
         if (mask & (1 << i)) {
-            mem[offset + i] = is_byte ? (data & 0xFF) : ((data >> (i * 8)) & 0xFF);
+            mem[offset + i] = (data >> (i * 8)) & 0xFF;
+            if (written_count < MAX_WRITES) {
+                written_addrs[written_count++] = addr + i;  // 注意：实际物理字节地址
+            }
         }
     }
 }
@@ -177,6 +189,22 @@ static void print_debug_info() {
     printf("\n");
 }
 
+// 全内存校验：逐字节对比 NPC 和 NEMU 的内存
+static void full_mem_check() {
+    for (uint32_t addr = MEM_BASE; addr < MEM_BASE + MEM_SIZE; addr++) {
+        uint32_t offset = addr - MEM_BASE;
+        uint8_t npc_byte = mem[offset];
+        uint8_t nemu_byte;
+        difftest_memcpy(addr, &nemu_byte, 1, DIFFTEST_TO_DUT);
+        if (npc_byte != nemu_byte) {
+            printf("\n[FULL MEM CHECK] mismatch at cycle %llu, addr 0x%08x: NPC=0x%02x, NEMU=0x%02x\n", 
+                   cycle, addr, npc_byte, nemu_byte);
+            print_debug_info();
+            assert(0);
+        }
+    }
+}
+
 // 执行一个完整的时钟周期（低->高->低），并更新全局 cycle
 static int exec_one_cycle() {
     if (simulation_finished || user_quit) return 0;
@@ -202,6 +230,35 @@ static int exec_one_cycle() {
     top->clock = 0; top->eval();
     top->clock = 1; top->eval();
     cycle++;
+
+    //========================状态对比=========================
+    difftest_exec(1);   
+
+    uint32_t nemu_state[17];   // 前16个是GPR，第17个是PC
+    difftest_regcpy(nemu_state, DIFFTEST_TO_DUT);
+
+    uint32_t npc_regs[16] = {
+        top->io_debug_regs_0,  top->io_debug_regs_1,
+        top->io_debug_regs_2,  top->io_debug_regs_3,
+        top->io_debug_regs_4,  top->io_debug_regs_5,
+        top->io_debug_regs_6,  top->io_debug_regs_7,
+        top->io_debug_regs_8,  top->io_debug_regs_9,
+        top->io_debug_regs_10, top->io_debug_regs_11,
+        top->io_debug_regs_12, top->io_debug_regs_13,
+        top->io_debug_regs_14, top->io_debug_regs_15
+    };
+
+    for (int i = 0; i < 16; i++) {
+        if (npc_regs[i] != nemu_state[i]) {
+            printf("\n[DIFFTEST] Register mismatch at cycle %llu\n", cycle);
+            printf("Reg[%d]: NPC = 0x%08x, NEMU = 0x%08x\n", i, npc_regs[i], nemu_state[i]);
+            print_debug_info();
+            assert(0);
+        }
+    }
+    
+    // 全内存校验（每周期）
+    full_mem_check();
 
     if (check_watchpoints()) {
         watchpoint_hit = 1;
@@ -963,6 +1020,13 @@ int main(int argc, char **argv) {
         return 1;
     }
     load_program(argv[1], MEM_BASE);
+
+    difftest_init();                                            // 初始化 NEMU
+
+    difftest_memcpy(MEM_BASE, mem, MEM_SIZE, DIFFTEST_TO_REF);  // 同步内存
+    unsigned int init_regs[17] = {0};                           // 16个GPR + PC
+    init_regs[16] = MEM_BASE;                                   // 初始 PC
+    difftest_regcpy(init_regs, DIFFTEST_TO_REF);                // 同步寄存器
 
     // 初始化 Capstone 反汇编引擎
     if (cs_open(CS_ARCH_RISCV, CS_MODE_RISCV32, &capstone_handle) != CS_ERR_OK) {
