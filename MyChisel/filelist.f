@@ -1,17 +1,1 @@
-IFU.sv
-InstructionDecoder.sv
-InformationDecoder.sv
-idu.sv
-AddrPassthrough.sv
-InputMUXforGRF.sv
-InputMUXforALU.sv
-ALU.sv
-InputMUXforAGU.sv
-AGU.sv
-BRU.sv
-EXU.sv
-LSU.sv
-WBU.sv
-GRF.sv
-./DPI_Memory.v
 top.sv

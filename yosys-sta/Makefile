@@ -7,7 +7,7 @@ SDC_FILE ?= $(PROJ_PATH)/scripts/default.sdc
 RTL_FILES ?= $(shell find $(PROJ_PATH)/example -name "*.v")
 export CLK_FREQ_MHZ ?= 500
 export CLK_PORT_NAME ?= clock
-PDK = icsprout55
+PDK = nangate45
 
 RESULT_DIR = $(O)/$(DESIGN)-$(CLK_FREQ_MHZ)MHz
 SCRIPT_DIR = $(PROJ_PATH)/scripts

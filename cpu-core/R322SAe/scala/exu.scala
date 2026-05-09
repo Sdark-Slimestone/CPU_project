@@ -3,7 +3,7 @@ package rv32e
 import chisel3._
 import chisel3.util._
 
-//ALU
+// ALU
 class ALU extends Module {
   val io = IO(new Bundle {
     val source1 = Input(UInt(32.W))
