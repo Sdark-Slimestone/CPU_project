@@ -1,1 +1,13 @@
+IFU.sv
+InstructionDecoder.sv
+InformationDecoder.sv
+decoder.sv
+idu.sv
+EXU.sv
+LSU.sv
+wbu.sv
+GRF.sv
+./DPI_Memory.v
+imem.sv
+dmem.sv
 top.sv
