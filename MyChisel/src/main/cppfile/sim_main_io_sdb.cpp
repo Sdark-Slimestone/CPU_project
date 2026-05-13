@@ -73,7 +73,7 @@ unsigned int pmem_read(unsigned int addr) {
 
 // DPI-C 可调用函数：内存写
 void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
-    if (addr == 0x10000000) {  // 串口输出
+    if (addr == 0x10000000) {
         if (mask & 0x1) {
             putchar((char)(data & 0xFF));
             fflush(stdout);
@@ -86,9 +86,6 @@ void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
     for (int i = 0; i < 4; i++) {
         if (mask & (1 << i)) {
             mem[offset + i] = (data >> (i * 8)) & 0xFF;
-            if (written_count < MAX_WRITES) {
-                written_addrs[written_count++] = addr + i;  // 注意：实际物理字节地址
-            }
         }
     }
 }
@@ -279,7 +276,7 @@ static void isa_reg_display() {
 static uint32_t isa_reg_str2val(const char *s, bool *success) {
     if (strcmp(s, "pc") == 0 || strcmp(s, "PC") == 0) {
         *success = true;
-        return top->io_debug_pc;
+        return top->io_debug_inst1_pc;
     }
     for (int i = 0; i < 16; i++) {
         if (strcmp(regs[i], s) == 0) {
