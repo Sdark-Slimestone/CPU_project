@@ -5,7 +5,7 @@ O ?= $(PROJ_PATH)/result
 DESIGN ?= top
 SDC_FILE ?= $(PROJ_PATH)/scripts/default.sdc
 RTL_FILES ?= $(shell find $(PROJ_PATH)/example -name "*.v")
-export CLK_FREQ_MHZ ?= 500
+export CLK_FREQ_MHZ ?= 100
 export CLK_PORT_NAME ?= clock
 PDK = nangate45
 

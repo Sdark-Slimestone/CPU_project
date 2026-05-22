@@ -176,6 +176,15 @@ class idu extends Module {
   val isStore2 = dec2.io.is_sb || dec2.io.is_sh || dec2.io.is_sw
   val isLoad1  = dec1.io.is_lb || dec1.io.is_lbu || dec1.io.is_lh || dec1.io.is_lhu || dec1.io.is_lw
   val isLoad2  = dec2.io.is_lb || dec2.io.is_lbu || dec2.io.is_lh || dec2.io.is_lhu || dec2.io.is_lw
+  
+  //bank计算
+  val load1imm_low = dec1.io.imm(0)
+  val load2imm_low = dec2.io.imm(0)
+  val load1rs1_low = io.grf_to_idu.dec1_value.inst1rs1_value (0)
+  val load2rs1_low = io.grf_to_idu.dec2_value.inst2rs1_value (0)
+  val load1addr_low = load1imm_low ^ load1rs1_low
+  val load2addr_low = load2imm_low ^ load2rs1_low
+
 
   // RAW: 指令1写寄存器，且被指令2作为源操作数
   val raw = (dec1.io.rd =/= 0.U) &&
@@ -187,9 +196,10 @@ class idu extends Module {
   val ramraw = (isStore1 && isLoad2) &&
                (io.grf_to_idu.dec1_value.inst1rs1_value === io.grf_to_idu.dec2_value.inst2rs1_value) &&
                (dec1.io.imm === dec2.io.imm)
+  val rambank_conflict = (isLoad1 && isLoad2) && (load1addr_low === load2addr_low)
   val ramwaw = isStore1 && isStore2
 
-  val stall_sig = raw || isControl1 || ramraw || ramwaw
+  val stall_sig = raw || isControl1 || ramraw || ramwaw || rambank_conflict
   io.idu_to_ifu.is_stall := stall_sig
 
   // ---------- 输出 rsaddr（给寄存器堆的读地址）----------
