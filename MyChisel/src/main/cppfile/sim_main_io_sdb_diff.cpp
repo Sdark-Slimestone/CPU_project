@@ -5,10 +5,8 @@
 #include <chrono>
 #include "Vtop.h"
 #include <stdbool.h>
-#include <regex.h>
 #include <stdint.h>
 #include <assert.h>
-#include <capstone/capstone.h>
 #include "/home/sdark/ysyx-workbench/nemu/include/difftest-def.h"
 
 #define panic(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while(0)
@@ -38,7 +36,6 @@ extern "C" {
 static auto boot_time = std::chrono::steady_clock::now();
 static Vtop *top = nullptr;
 static unsigned long long cycle = 0;
-static csh capstone_handle = 0;
 
 static uint64_t get_uptime_us() {
     auto now = std::chrono::steady_clock::now();
@@ -144,8 +141,18 @@ static void print_debug_info() {
            top->io_debug_wbu_valid1, top->io_debug_wbu_valid2,
            top->io_debug_wbu_conflict);
     printf("Regs: ");
+    uint32_t debug_regs[16] = {
+        top->io_debug_grf_regs_0,  top->io_debug_grf_regs_1,
+        top->io_debug_grf_regs_2,  top->io_debug_grf_regs_3,
+        top->io_debug_grf_regs_4,  top->io_debug_grf_regs_5,
+        top->io_debug_grf_regs_6,  top->io_debug_grf_regs_7,
+        top->io_debug_grf_regs_8,  top->io_debug_grf_regs_9,
+        top->io_debug_grf_regs_10, top->io_debug_grf_regs_11,
+        top->io_debug_grf_regs_12, top->io_debug_grf_regs_13,
+        top->io_debug_grf_regs_14, top->io_debug_grf_regs_15
+    };
     for (int i = 0; i < 16; i++) {
-        printf("x%d=0x%08x ", i, top->io_debug_grf_regs[i]);
+        printf("x%d=0x%08x ", i, debug_regs[i]);
     }
     printf("\n");
     printf("CSR: mcycle=%llu minstret=%llu mstatus=0x%08x mcause=0x%08x mepc=0x%08x\n",
@@ -155,32 +162,50 @@ static void print_debug_info() {
 }
 
 // Dual-issue: 每周期最多执行2条指令
-// 对于diff: 如果stall则difftest_exec(1)，否则difftest_exec(2)
+// 读寄存器顺序：
+//   1. NPC时钟上升沿（regs := nextRegs）-> regs更新
+//   2. C++读取io_debug_grf_regs（此时regs已包含刚执行完的结果）
+//   3. difftest_exec让NEMU执行同样数量的指令
+//   4. 对比
 static int exec_one_cycle() {
     if (simulation_finished || user_quit) return 0;
 
+    // 执行NPC一个周期（时钟上升沿时GRF写入新值）
     top->clock = 0; top->eval();
     top->clock = 1; top->eval();
     cycle++;
 
-    // 检查stall：stall=true时仅发1条，否则发2条
-    int inst_count = top->io_debug_stall ? 1 : 2;
-    
-    // 如果在复位后刚开始，用NEMU同步
-    // 通知NEMU执行对应数量的指令
-    difftest_exec(inst_count);
+    // 读取NPC刚更新后的寄存器值
+    uint32_t npc_regs[16];
+    npc_regs[0]  = top->io_debug_grf_regs_0;
+    npc_regs[1]  = top->io_debug_grf_regs_1;
+    npc_regs[2]  = top->io_debug_grf_regs_2;
+    npc_regs[3]  = top->io_debug_grf_regs_3;
+    npc_regs[4]  = top->io_debug_grf_regs_4;
+    npc_regs[5]  = top->io_debug_grf_regs_5;
+    npc_regs[6]  = top->io_debug_grf_regs_6;
+    npc_regs[7]  = top->io_debug_grf_regs_7;
+    npc_regs[8]  = top->io_debug_grf_regs_8;
+    npc_regs[9]  = top->io_debug_grf_regs_9;
+    npc_regs[10] = top->io_debug_grf_regs_10;
+    npc_regs[11] = top->io_debug_grf_regs_11;
+    npc_regs[12] = top->io_debug_grf_regs_12;
+    npc_regs[13] = top->io_debug_grf_regs_13;
+    npc_regs[14] = top->io_debug_grf_regs_14;
+    npc_regs[15] = top->io_debug_grf_regs_15;
 
-    // 获取NEMU寄存器状态
+    // 检查stall: stall=true仅发1条，否则发2条
+    // NEMU difftest_exec(n) 可能不支持 n>1，所以循环调用
+    int inst_count = top->io_debug_stall ? 1 : 2;
+    for (int i = 0; i < inst_count; i++) {
+        difftest_exec(1);
+    }
+
+    // 获取NEMU执行后的寄存器状态
     uint32_t nemu_state[17];
     difftest_regcpy(nemu_state, DIFFTEST_TO_DUT);
 
-    // NPC寄存器（GRF延迟一周期可见，但debug_regs直接连regs组合逻辑可见）
-    uint32_t npc_regs[16];
-    for (int i = 0; i < 16; i++) {
-        npc_regs[i] = top->io_debug_grf_regs[i];
-    }
-
-    // 寄存器对比
+    // 对比：NPC刚执行完的结果 vs NEMU执行对应数量的结果
     for (int i = 0; i < 16; i++) {
         if (npc_regs[i] != nemu_state[i]) {
             printf("\n[DIFFTEST] Register mismatch at cycle %llu\n", cycle);
@@ -236,28 +261,19 @@ int main(int argc, char **argv) {
     init_regs[16] = MEM_BASE;
     difftest_regcpy(init_regs, DIFFTEST_TO_REF);
 
-    // 初始化Capstone
-    if (cs_open(CS_ARCH_RISCV, CS_MODE_RISCV32, &capstone_handle) != CS_ERR_OK) {
-        printf("Warning: Capstone init failed.\n");
-        capstone_handle = 0;
-    }
-
     top = new Vtop;
-    // 复位
+    // 复位序列（仅复位，不执行指令）
     top->reset = 1;
     top->clock = 0; top->eval();
     top->clock = 1; top->eval();
     top->reset = 0;
     top->clock = 0; top->eval();
-    // 复位后NEMU同步
-    difftest_exec(1);
 
     printf("[INFO] Reset complete. Running...\n");
 
     // 直接跑完
     exec_continue();
 
-    if (capstone_handle) cs_close(&capstone_handle);
     delete top;
     return 0;
 }
