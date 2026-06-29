@@ -1,4 +1,4 @@
-package rv32ecsr
+package R1322IAeCSR
 
 import chisel3._
 import chisel3.util._
@@ -127,7 +127,6 @@ class CSR extends Module {
   io.csr_rdata := csr_rdata_wire
 
   // ============== CSR 写逻辑 ==============
-  // 计算 CSR 写入值（支持 csrrw/csrrs/csrrc 原子操作）
   val csr_write_val = Wire(UInt(32.W))
   val t_rs1 = Mux(io.use_imm, Cat(0.U(27.W), io.rs1_val(4, 0)), io.rs1_val)
 
@@ -154,9 +153,7 @@ class CSR extends Module {
   val take_trap_wire = Wire(Bool())
   take_trap_wire := false.B
 
-  // ecall: 触发环境调用异常，mepc 设为 ecall+4（硬件跳过 ecall 指令）
-  // AM 的 cte.c 中 yield 使用 ecall，但 cte_init 的异常处理没有为 ecall 添加 +4，
-  // 所以必须在硬件中直接设为 pc+4
+  // ecall: 触发环境调用异常，mepc 设为 ecall+4
   when (io.ecall) {
     mepc_reg  := io.current_pc + 4.U
     mcause_reg := 11.U(32.W)  // ECALL from M-mode

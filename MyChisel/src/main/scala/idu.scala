@@ -1,438 +1,370 @@
-package rv32ecsr
+package R1322IAeCSR
 
 import chisel3._
 import chisel3.util._
 
-// 指令操作解码模块：根据 opcode、funct3、funct7 识别指定指令
-class InstructionDecoder extends Module {
-  val io = IO(new Bundle {
-    val inst = Input(UInt(32.W))
-    val is_lui    = Output(Bool())
-    val is_auipc  = Output(Bool())
-    val is_jal    = Output(Bool())
-    val is_jalr   = Output(Bool())
-    val is_beq    = Output(Bool())
-    val is_bne    = Output(Bool())
-    val is_blt    = Output(Bool())
-    val is_bge    = Output(Bool())
-    val is_bltu   = Output(Bool())
-    val is_bgeu   = Output(Bool())
-    val is_lb     = Output(Bool())
-    val is_lh     = Output(Bool())
-    val is_lw     = Output(Bool())
-    val is_lbu    = Output(Bool())
-    val is_lhu    = Output(Bool())
-    val is_sb     = Output(Bool())
-    val is_sh     = Output(Bool())
-    val is_sw     = Output(Bool())
-    val is_addi   = Output(Bool())
-    val is_slti   = Output(Bool())
-    val is_sltiu  = Output(Bool())
-    val is_xori   = Output(Bool())
-    val is_ori    = Output(Bool())
-    val is_andi   = Output(Bool())
-    val is_slli   = Output(Bool())
-    val is_srli   = Output(Bool())
-    val is_srai   = Output(Bool())
-    val is_add    = Output(Bool())
-    val is_sub    = Output(Bool())
-    val is_sll    = Output(Bool())
-    val is_slt    = Output(Bool())
-    val is_sltu   = Output(Bool())
-    val is_xor    = Output(Bool())
-    val is_srl    = Output(Bool())
-    val is_sra    = Output(Bool())
-    val is_or     = Output(Bool())
-    val is_and    = Output(Bool())
-    // CSR 指令
-    val is_csrrw  = Output(Bool())
-    val is_csrrs  = Output(Bool())
-    val is_csrrc  = Output(Bool())
-    val is_csrrwi = Output(Bool())
-    val is_csrrsi = Output(Bool())
-    val is_csrrci = Output(Bool())
-    val is_ecall  = Output(Bool())
-    val is_ebreak = Output(Bool())
-    val is_mret   = Output(Bool())
-  })
-
-  val opcode = io.inst(6, 0)
-  val funct3 = io.inst(14, 12)
-  val funct7 = io.inst(31, 25)
-  val rs1    = io.inst(19, 15)
-  val rd     = io.inst(11, 7)
-
-  val OPCODE_LUI    = "b0110111".U(7.W)
-  val OPCODE_AUIPC  = "b0010111".U(7.W)
-  val OPCODE_JAL    = "b1101111".U(7.W)
-  val OPCODE_JALR   = "b1100111".U(7.W)
-  val OPCODE_B      = "b1100011".U(7.W)
-  val OPCODE_LOAD   = "b0000011".U(7.W)
-  val OPCODE_S      = "b0100011".U(7.W)
-  val OPCODE_I      = "b0010011".U(7.W)
-  val OPCODE_R      = "b0110011".U(7.W)
-  val OPCODE_SYSTEM = "b1110011".U(7.W)
-
-  io.is_lui   := opcode === OPCODE_LUI
-  io.is_auipc := opcode === OPCODE_AUIPC
-  io.is_jal   := opcode === OPCODE_JAL
-  io.is_jalr  := (opcode === OPCODE_JALR) && (funct3 === 0.U)
-
-  io.is_beq  := (opcode === OPCODE_B) && (funct3 === 0.U)
-  io.is_bne  := (opcode === OPCODE_B) && (funct3 === 1.U)
-  io.is_blt  := (opcode === OPCODE_B) && (funct3 === 4.U)
-  io.is_bge  := (opcode === OPCODE_B) && (funct3 === 5.U)
-  io.is_bltu := (opcode === OPCODE_B) && (funct3 === 6.U)
-  io.is_bgeu := (opcode === OPCODE_B) && (funct3 === 7.U)
-
-  io.is_lb  := (opcode === OPCODE_LOAD) && (funct3 === 0.U)
-  io.is_lh  := (opcode === OPCODE_LOAD) && (funct3 === 1.U)
-  io.is_lw  := (opcode === OPCODE_LOAD) && (funct3 === 2.U)
-  io.is_lbu := (opcode === OPCODE_LOAD) && (funct3 === 4.U)
-  io.is_lhu := (opcode === OPCODE_LOAD) && (funct3 === 5.U)
-
-  io.is_sb  := (opcode === OPCODE_S) && (funct3 === 0.U)
-  io.is_sh  := (opcode === OPCODE_S) && (funct3 === 1.U)
-  io.is_sw  := (opcode === OPCODE_S) && (funct3 === 2.U)
-
-  io.is_addi  := (opcode === OPCODE_I) && (funct3 === 0.U)
-  io.is_slti  := (opcode === OPCODE_I) && (funct3 === 2.U)
-  io.is_sltiu := (opcode === OPCODE_I) && (funct3 === 3.U)
-  io.is_xori  := (opcode === OPCODE_I) && (funct3 === 4.U)
-  io.is_ori   := (opcode === OPCODE_I) && (funct3 === 6.U)
-  io.is_andi  := (opcode === OPCODE_I) && (funct3 === 7.U)
-  io.is_slli  := (opcode === OPCODE_I) && (funct3 === 1.U) && (funct7 === 0.U)
-  io.is_srli  := (opcode === OPCODE_I) && (funct3 === 5.U) && (funct7 === 0.U)
-  io.is_srai  := (opcode === OPCODE_I) && (funct3 === 5.U) && (funct7 === "b0100000".U(7.W))
-
-  io.is_add  := (opcode === OPCODE_R) && (funct3 === 0.U) && (funct7 === 0.U)
-  io.is_sub  := (opcode === OPCODE_R) && (funct3 === 0.U) && (funct7 === "b0100000".U(7.W))
-  io.is_sll  := (opcode === OPCODE_R) && (funct3 === 1.U) && (funct7 === 0.U)
-  io.is_slt  := (opcode === OPCODE_R) && (funct3 === 2.U) && (funct7 === 0.U)
-  io.is_sltu := (opcode === OPCODE_R) && (funct3 === 3.U) && (funct7 === 0.U)
-  io.is_xor  := (opcode === OPCODE_R) && (funct3 === 4.U) && (funct7 === 0.U)
-  io.is_srl  := (opcode === OPCODE_R) && (funct3 === 5.U) && (funct7 === 0.U)
-  io.is_sra  := (opcode === OPCODE_R) && (funct3 === 5.U) && (funct7 === "b0100000".U(7.W))
-  io.is_or   := (opcode === OPCODE_R) && (funct3 === 6.U) && (funct7 === 0.U)
-  io.is_and  := (opcode === OPCODE_R) && (funct3 === 7.U) && (funct7 === 0.U)
-
-  // CSR 指令: SYSTEM opcode, funct3 编码
-  val is_system = opcode === OPCODE_SYSTEM
-  val is_csr    = is_system && (funct3 =/= 0.U)
-
-  io.is_csrrw  := is_csr && (funct3 === 1.U)
-  io.is_csrrs  := is_csr && (funct3 === 2.U)
-  io.is_csrrc  := is_csr && (funct3 === 3.U)
-  io.is_csrrwi := is_csr && (funct3 === 5.U)
-  io.is_csrrsi := is_csr && (funct3 === 6.U)
-  io.is_csrrci := is_csr && (funct3 === 7.U)
-
-  // ecall: funct3=0, imm=0, rs1=0, rd=0
-  io.is_ecall := is_system && (funct3 === 0.U) &&
-                  (io.inst(31, 20) === 0.U) && (rs1 === 0.U) &&
-                  (rd === 0.U) && (funct7 === 0.U)
-
-  // ebreak: funct3=0, imm=1, rs1=0, rd=0
-  io.is_ebreak := is_system && (funct3 === 0.U) &&
-                  (io.inst(31, 20) === 1.U) && (rs1 === 0.U) &&
-                  (rd === 0.U) && (funct7 === 0.U)
-
-  // mret: funct3=0, imm=0x302, rs1=0, rd=0
-  io.is_mret := is_system && (funct3 === 0.U) &&
-                (io.inst(31, 20) === "b0011000000".U(12.W)) && (rs1 === 0.U) &&
-                (rd === 0.U) && (funct7 === 0.U)
-}
-
-class InformationDecoder extends Module {
-  val io = IO(new Bundle {
-    val is_lui    = Input(Bool())
-    val is_auipc  = Input(Bool())
-    val is_jal    = Input(Bool())
-    val is_jalr   = Input(Bool())
-    val is_beq    = Input(Bool())
-    val is_bne    = Input(Bool())
-    val is_blt    = Input(Bool())
-    val is_bge    = Input(Bool())
-    val is_bltu   = Input(Bool())
-    val is_bgeu   = Input(Bool())
-    val is_lb     = Input(Bool())
-    val is_lh     = Input(Bool())
-    val is_lw     = Input(Bool())
-    val is_lbu    = Input(Bool())
-    val is_lhu    = Input(Bool())
-    val is_sb     = Input(Bool())
-    val is_sh     = Input(Bool())
-    val is_sw     = Input(Bool())
-    val is_addi   = Input(Bool())
-    val is_slti   = Input(Bool())
-    val is_sltiu  = Input(Bool())
-    val is_xori   = Input(Bool())
-    val is_ori    = Input(Bool())
-    val is_andi   = Input(Bool())
-    val is_slli   = Input(Bool())
-    val is_srli   = Input(Bool())
-    val is_srai   = Input(Bool())
-    val is_add    = Input(Bool())
-    val is_sub    = Input(Bool())
-    val is_sll    = Input(Bool())
-    val is_slt    = Input(Bool())
-    val is_sltu   = Input(Bool())
-    val is_xor    = Input(Bool())
-    val is_srl    = Input(Bool())
-    val is_sra    = Input(Bool())
-    val is_or     = Input(Bool())
-    val is_and    = Input(Bool())
-    // CSR 指令
-    val is_csrrw  = Input(Bool())
-    val is_csrrs  = Input(Bool())
-    val is_csrrc  = Input(Bool())
-    val is_csrrwi = Input(Bool())
-    val is_csrrsi = Input(Bool())
-    val is_csrrci = Input(Bool())
-    val inst      = Input(UInt(32.W))
-    val rd        = Output(UInt(5.W))
-    val rs1       = Output(UInt(5.W))
-    val rs2       = Output(UInt(5.W))
-    val imm_i     = Output(UInt(32.W))
-    val imm_s     = Output(UInt(32.W))
-    val imm_b     = Output(UInt(32.W))
-    val imm_u     = Output(UInt(32.W))
-    val imm_j     = Output(UInt(32.W))
-  })
-
-  // 需要写回通用寄存器的指令（CSR 指令读出来的旧 CSR 值也要写回 rd）
-  val is_csr = io.is_csrrw || io.is_csrrs || io.is_csrrc ||
-               io.is_csrrwi || io.is_csrrsi || io.is_csrrci
-  val wr_rd = io.is_lui || io.is_auipc || io.is_jal || io.is_jalr ||
-              io.is_lb || io.is_lh || io.is_lw || io.is_lbu || io.is_lhu ||
-              io.is_addi || io.is_slti || io.is_sltiu || io.is_xori ||
-              io.is_ori || io.is_andi || io.is_slli || io.is_srli || io.is_srai ||
-              io.is_add || io.is_sub || io.is_sll || io.is_slt || io.is_sltu ||
-              io.is_xor || io.is_srl || io.is_sra || io.is_or || io.is_and ||
-              is_csr
-  io.rd := Mux(wr_rd, io.inst(11, 7), 0.U(5.W))
-
-  // CSR 指令中 csrrw/csrrs/csrrc 使用 rs1，csrrwi/csrrsi/csrrci 使用 uimm（不需要 rd）
-  val csr_use_rs1 = io.is_csrrw || io.is_csrrs || io.is_csrrc
-  val use_rs1 = io.is_jalr ||
-                io.is_beq || io.is_bne || io.is_blt || io.is_bge || io.is_bltu || io.is_bgeu ||
-                io.is_lb || io.is_lh || io.is_lw || io.is_lbu || io.is_lhu ||
-                io.is_sb || io.is_sh || io.is_sw ||
-                io.is_addi || io.is_slti || io.is_sltiu || io.is_xori ||
-                io.is_ori || io.is_andi || io.is_slli || io.is_srli || io.is_srai ||
-                io.is_add || io.is_sub || io.is_sll || io.is_slt || io.is_sltu ||
-                io.is_xor || io.is_srl || io.is_sra || io.is_or || io.is_and ||
-                csr_use_rs1
-  io.rs1 := Mux(use_rs1, io.inst(19, 15), 0.U(5.W))
-
-  val use_rs2 = io.is_beq || io.is_bne || io.is_blt || io.is_bge || io.is_bltu || io.is_bgeu ||
-                io.is_sb || io.is_sh || io.is_sw ||
-                io.is_add || io.is_sub || io.is_sll || io.is_slt || io.is_sltu ||
-                io.is_xor || io.is_srl || io.is_sra || io.is_or || io.is_and
-  io.rs2 := Mux(use_rs2, io.inst(24, 20), 0.U(5.W))
-
-  val imm_i_raw = io.inst(31, 20)
-  val imm_i_sext = Cat(Fill(20, imm_i_raw(11)), imm_i_raw)
-  val need_imm_i = io.is_jalr || io.is_lb || io.is_lh || io.is_lw || io.is_lbu || io.is_lhu ||
-                   io.is_addi || io.is_slti || io.is_sltiu || io.is_xori ||
-                   io.is_ori || io.is_andi || io.is_slli || io.is_srli || io.is_srai
-  io.imm_i := Mux(need_imm_i, imm_i_sext, 0.U(32.W))
-
-  val imm_s_raw = Cat(io.inst(31, 25), io.inst(11, 7))
-  val imm_s_sext = Cat(Fill(20, imm_s_raw(11)), imm_s_raw)
-  val need_imm_s = io.is_sb || io.is_sh || io.is_sw
-  io.imm_s := Mux(need_imm_s, imm_s_sext, 0.U(32.W))
-
-  val imm_b_raw = Cat(io.inst(31), io.inst(7), io.inst(30, 25), io.inst(11, 8), 0.U(1.W))
-  val imm_b_sext = Cat(Fill(19, imm_b_raw(12)), imm_b_raw)
-  val need_imm_b = io.is_beq || io.is_bne || io.is_blt || io.is_bge || io.is_bltu || io.is_bgeu
-  io.imm_b := Mux(need_imm_b, imm_b_sext, 0.U(32.W))
-
-  val imm_u_raw = Cat(io.inst(31, 12), 0.U(12.W))
-  val need_imm_u = io.is_lui || io.is_auipc
-  io.imm_u := Mux(need_imm_u, imm_u_raw, 0.U(32.W))
-
-  val imm_j_raw = Cat(io.inst(31), io.inst(19, 12), io.inst(20), io.inst(30, 21), 0.U(1.W))
-  val imm_j_sext = Cat(Fill(11, imm_j_raw(20)), imm_j_raw)
-  val need_imm_j = io.is_jal
-  io.imm_j := Mux(need_imm_j, imm_j_sext, 0.U(32.W))
-}
-
+// 指令解码与发射单元，支持双发射，CSR指令强制单发射
 class idu extends Module {
   val io = IO(new Bundle {
-    val inst        = Input(UInt(32.W))
-    // 所有指令识别信号
-    val is_lui      = Output(Bool())
-    val is_auipc    = Output(Bool())
-    val is_jal      = Output(Bool())
-    val is_jalr     = Output(Bool())
-    val is_beq      = Output(Bool())
-    val is_bne      = Output(Bool())
-    val is_blt      = Output(Bool())
-    val is_bge      = Output(Bool())
-    val is_bltu     = Output(Bool())
-    val is_bgeu     = Output(Bool())
-    val is_lb       = Output(Bool())
-    val is_lh       = Output(Bool())
-    val is_lw       = Output(Bool())
-    val is_lbu      = Output(Bool())
-    val is_lhu      = Output(Bool())
-    val is_sb       = Output(Bool())
-    val is_sh       = Output(Bool())
-    val is_sw       = Output(Bool())
-    val is_addi     = Output(Bool())
-    val is_slti     = Output(Bool())
-    val is_sltiu    = Output(Bool())
-    val is_xori     = Output(Bool())
-    val is_ori      = Output(Bool())
-    val is_andi     = Output(Bool())
-    val is_slli     = Output(Bool())
-    val is_srli     = Output(Bool())
-    val is_srai     = Output(Bool())
-    val is_add      = Output(Bool())
-    val is_sub      = Output(Bool())
-    val is_sll      = Output(Bool())
-    val is_slt      = Output(Bool())
-    val is_sltu     = Output(Bool())
-    val is_xor      = Output(Bool())
-    val is_srl      = Output(Bool())
-    val is_sra      = Output(Bool())
-    val is_or       = Output(Bool())
-    val is_and      = Output(Bool())
-    // CSR 指令
-    val is_csrrw    = Output(Bool())
-    val is_csrrs    = Output(Bool())
-    val is_csrrc    = Output(Bool())
-    val is_csrrwi   = Output(Bool())
-    val is_csrrsi   = Output(Bool())
-    val is_csrrci   = Output(Bool())
-    val is_ecall    = Output(Bool())
-    val is_ebreak   = Output(Bool())
-    val is_mret     = Output(Bool())
-    // 寄存器地址
-    val rd          = Output(UInt(5.W))
-    val rs1         = Output(UInt(5.W))
-    val rs2         = Output(UInt(5.W))
-    // 立即数
-    val imm_i       = Output(UInt(32.W))
-    val imm_s       = Output(UInt(32.W))
-    val imm_b       = Output(UInt(32.W))
-    val imm_u       = Output(UInt(32.W))
-    val imm_j       = Output(UInt(32.W))
-    val imm12       = Output(UInt(32.W))
-    val imm20       = Output(UInt(32.W))
-    val debug_inst  = Output(UInt(32.W))
+    // 来自 IFU
+    val ifu_to_idu = new Bundle {
+      val inst1        = Input(UInt(32.W))
+      val inst2        = Input(UInt(32.W))
+      val inst1_pc     = Input(UInt(32.W))
+      val inst2_pc     = Input(UInt(32.W))
+      val inst1_nextpc = Input(UInt(32.W))
+      val inst2_nextpc = Input(UInt(32.W))
+    }
+
+    // 来自 GRF 的寄存器值
+    val grf_to_idu = new Bundle {
+      val dec1_value = new Bundle {
+        val inst1rs1_value = Input(UInt(32.W))
+        val inst1rs2_value = Input(UInt(32.W))
+      }
+      val dec2_value = new Bundle {
+        val inst2rs1_value = Input(UInt(32.W))
+        val inst2rs2_value = Input(UInt(32.W))
+      }
+    }
+
+    // 发往 GRF 的读地址
+    val idu_to_grf = new Bundle {
+      val dec1_redreg = new Bundle {
+        val rs1 = Output(UInt(5.W))
+        val rs2 = Output(UInt(5.W))
+      }
+      val dec2_redreg = new Bundle {
+        val rs1 = Output(UInt(5.W))
+        val rs2 = Output(UInt(5.W))
+      }
+    }
+
+    // 第一条指令 -> EXU1
+    val idu_to_exu1 = new Bundle {
+      val dec1_op = new Bundle {
+        val is_lui    = Output(Bool())
+        val is_auipc  = Output(Bool())
+        val is_jal    = Output(Bool())
+        val is_jalr   = Output(Bool())
+        val is_beq    = Output(Bool())
+        val is_bne    = Output(Bool())
+        val is_blt    = Output(Bool())
+        val is_bge    = Output(Bool())
+        val is_bltu   = Output(Bool())
+        val is_bgeu   = Output(Bool())
+        val is_lb     = Output(Bool())
+        val is_lh     = Output(Bool())
+        val is_lw     = Output(Bool())
+        val is_lbu    = Output(Bool())
+        val is_lhu    = Output(Bool())
+        val is_sb     = Output(Bool())
+        val is_sh     = Output(Bool())
+        val is_sw     = Output(Bool())
+        val is_addi   = Output(Bool())
+        val is_slti   = Output(Bool())
+        val is_sltiu  = Output(Bool())
+        val is_xori   = Output(Bool())
+        val is_ori    = Output(Bool())
+        val is_andi   = Output(Bool())
+        val is_slli   = Output(Bool())
+        val is_srli   = Output(Bool())
+        val is_srai   = Output(Bool())
+        val is_add    = Output(Bool())
+        val is_sub    = Output(Bool())
+        val is_sll    = Output(Bool())
+        val is_slt    = Output(Bool())
+        val is_sltu   = Output(Bool())
+        val is_xor    = Output(Bool())
+        val is_srl    = Output(Bool())
+        val is_sra    = Output(Bool())
+        val is_or     = Output(Bool())
+        val is_and    = Output(Bool())
+        val is_ebreak = Output(Bool())
+        // CSR 信号
+        val is_csrrw  = Output(Bool())
+        val is_csrrs  = Output(Bool())
+        val is_csrrc  = Output(Bool())
+        val is_csrrwi = Output(Bool())
+        val is_csrrsi = Output(Bool())
+        val is_csrrci = Output(Bool())
+        val is_ecall  = Output(Bool())
+        val is_mret   = Output(Bool())
+      }
+      val dec1_imm = Output(UInt(32.W))
+      val dec1_val = new Bundle {
+        val rs1_val = Output(UInt(32.W))
+        val rs2_val = Output(UInt(32.W))
+        val nextpc  = Output(UInt(32.W))
+      }
+      val dec1_rd = Output(UInt(5.W))
+    }
+
+    // 第二条指令 -> EXU2
+    val idu_to_exu2 = new Bundle {
+      val dec2_op = new Bundle {
+        val is_lui    = Output(Bool())
+        val is_auipc  = Output(Bool())
+        val is_jal    = Output(Bool())
+        val is_jalr   = Output(Bool())
+        val is_beq    = Output(Bool())
+        val is_bne    = Output(Bool())
+        val is_blt    = Output(Bool())
+        val is_bge    = Output(Bool())
+        val is_bltu   = Output(Bool())
+        val is_bgeu   = Output(Bool())
+        val is_lb     = Output(Bool())
+        val is_lh     = Output(Bool())
+        val is_lw     = Output(Bool())
+        val is_lbu    = Output(Bool())
+        val is_lhu    = Output(Bool())
+        val is_sb     = Output(Bool())
+        val is_sh     = Output(Bool())
+        val is_sw     = Output(Bool())
+        val is_addi   = Output(Bool())
+        val is_slti   = Output(Bool())
+        val is_sltiu  = Output(Bool())
+        val is_xori   = Output(Bool())
+        val is_ori    = Output(Bool())
+        val is_andi   = Output(Bool())
+        val is_slli   = Output(Bool())
+        val is_srli   = Output(Bool())
+        val is_srai   = Output(Bool())
+        val is_add    = Output(Bool())
+        val is_sub    = Output(Bool())
+        val is_sll    = Output(Bool())
+        val is_slt    = Output(Bool())
+        val is_sltu   = Output(Bool())
+        val is_xor    = Output(Bool())
+        val is_srl    = Output(Bool())
+        val is_sra    = Output(Bool())
+        val is_or     = Output(Bool())
+        val is_and    = Output(Bool())
+        val is_ebreak = Output(Bool())
+        // CSR 信号
+        val is_csrrw  = Output(Bool())
+        val is_csrrs  = Output(Bool())
+        val is_csrrc  = Output(Bool())
+        val is_csrrwi = Output(Bool())
+        val is_csrrsi = Output(Bool())
+        val is_csrrci = Output(Bool())
+        val is_ecall  = Output(Bool())
+        val is_mret   = Output(Bool())
+      }
+      val dec2_imm = Output(UInt(32.W))
+      val dec2_val = new Bundle {
+        val rs1_val = Output(UInt(32.W))
+        val rs2_val = Output(UInt(32.W))
+        val nextpc  = Output(UInt(32.W))
+      }
+      val dec2_rd = Output(UInt(5.W))
+    }
+
+    // 发往 IFU 的 stall 信号
+    val idu_to_ifu = new Bundle {
+      val is_stall = Output(Bool())
+    }
+
+    // CSR 相关信号直通到 top
+    val idu_to_top = new Bundle {
+      val is_csrrw  = Output(Bool())
+      val is_csrrs  = Output(Bool())
+      val is_csrrc  = Output(Bool())
+      val is_csrrwi = Output(Bool())
+      val is_csrrsi = Output(Bool())
+      val is_csrrci = Output(Bool())
+      val is_ecall  = Output(Bool())
+      val is_mret   = Output(Bool())
+      val is_ebreak = Output(Bool())
+      val inst1_pc  = Output(UInt(32.W))
+      val inst1     = Output(UInt(32.W))
+      val rs1_val   = Output(UInt(32.W))
+    }
+
+    // 调试端口
+    val idu_debug = new Bundle {
+      val debug_inst1 = Output(UInt(32.W))
+      val debug_inst2 = Output(UInt(32.W))
+      val is_stall    = Output(Bool())
+    }
   })
 
-  val instDecoder = Module(new InstructionDecoder)
-  instDecoder.io.inst := io.inst
+  // 实例化译码器
+  val dec1 = Module(new decoder)
+  val dec2 = Module(new decoder)
+  dec1.io.inst := io.ifu_to_idu.inst1
+  dec2.io.inst := io.ifu_to_idu.inst2
 
-  val infoDecoder = Module(new InformationDecoder)
-  infoDecoder.io.inst     := io.inst
-  infoDecoder.io.is_lui   := instDecoder.io.is_lui
-  infoDecoder.io.is_auipc := instDecoder.io.is_auipc
-  infoDecoder.io.is_jal   := instDecoder.io.is_jal
-  infoDecoder.io.is_jalr  := instDecoder.io.is_jalr
-  infoDecoder.io.is_beq   := instDecoder.io.is_beq
-  infoDecoder.io.is_bne   := instDecoder.io.is_bne
-  infoDecoder.io.is_blt   := instDecoder.io.is_blt
-  infoDecoder.io.is_bge   := instDecoder.io.is_bge
-  infoDecoder.io.is_bltu  := instDecoder.io.is_bltu
-  infoDecoder.io.is_bgeu  := instDecoder.io.is_bgeu
-  infoDecoder.io.is_lb    := instDecoder.io.is_lb
-  infoDecoder.io.is_lh    := instDecoder.io.is_lh
-  infoDecoder.io.is_lw    := instDecoder.io.is_lw
-  infoDecoder.io.is_lbu   := instDecoder.io.is_lbu
-  infoDecoder.io.is_lhu   := instDecoder.io.is_lhu
-  infoDecoder.io.is_sb    := instDecoder.io.is_sb
-  infoDecoder.io.is_sh    := instDecoder.io.is_sh
-  infoDecoder.io.is_sw    := instDecoder.io.is_sw
-  infoDecoder.io.is_addi  := instDecoder.io.is_addi
-  infoDecoder.io.is_slti  := instDecoder.io.is_slti
-  infoDecoder.io.is_sltiu := instDecoder.io.is_sltiu
-  infoDecoder.io.is_xori  := instDecoder.io.is_xori
-  infoDecoder.io.is_ori   := instDecoder.io.is_ori
-  infoDecoder.io.is_andi  := instDecoder.io.is_andi
-  infoDecoder.io.is_slli  := instDecoder.io.is_slli
-  infoDecoder.io.is_srli  := instDecoder.io.is_srli
-  infoDecoder.io.is_srai  := instDecoder.io.is_srai
-  infoDecoder.io.is_add   := instDecoder.io.is_add
-  infoDecoder.io.is_sub   := instDecoder.io.is_sub
-  infoDecoder.io.is_sll   := instDecoder.io.is_sll
-  infoDecoder.io.is_slt   := instDecoder.io.is_slt
-  infoDecoder.io.is_sltu  := instDecoder.io.is_sltu
-  infoDecoder.io.is_xor   := instDecoder.io.is_xor
-  infoDecoder.io.is_srl   := instDecoder.io.is_srl
-  infoDecoder.io.is_sra   := instDecoder.io.is_sra
-  infoDecoder.io.is_or    := instDecoder.io.is_or
-  infoDecoder.io.is_and   := instDecoder.io.is_and
-  infoDecoder.io.is_csrrw  := instDecoder.io.is_csrrw
-  infoDecoder.io.is_csrrs  := instDecoder.io.is_csrrs
-  infoDecoder.io.is_csrrc  := instDecoder.io.is_csrrc
-  infoDecoder.io.is_csrrwi := instDecoder.io.is_csrrwi
-  infoDecoder.io.is_csrrsi := instDecoder.io.is_csrrsi
-  infoDecoder.io.is_csrrci := instDecoder.io.is_csrrci
+  // ---------- 冒险检测 ----------
+  // 控制指令（含 CSR）强制单发射
+  val isControl1 = dec1.io.is_jal || dec1.io.is_jalr ||
+                   dec1.io.is_beq || dec1.io.is_bne ||
+                   dec1.io.is_blt || dec1.io.is_bge ||
+                   dec1.io.is_bltu || dec1.io.is_bgeu ||
+                   dec1.io.is_ebreak ||
+                   dec1.io.is_csrrw || dec1.io.is_csrrs || dec1.io.is_csrrc ||
+                   dec1.io.is_csrrwi || dec1.io.is_csrrsi || dec1.io.is_csrrci ||
+                   dec1.io.is_ecall || dec1.io.is_mret
 
-  // 输出所有指令识别信号
-  io.is_lui   := instDecoder.io.is_lui
-  io.is_auipc := instDecoder.io.is_auipc
-  io.is_jal   := instDecoder.io.is_jal
-  io.is_jalr  := instDecoder.io.is_jalr
-  io.is_beq   := instDecoder.io.is_beq
-  io.is_bne   := instDecoder.io.is_bne
-  io.is_blt   := instDecoder.io.is_blt
-  io.is_bge   := instDecoder.io.is_bge
-  io.is_bltu  := instDecoder.io.is_bltu
-  io.is_bgeu  := instDecoder.io.is_bgeu
-  io.is_lb    := instDecoder.io.is_lb
-  io.is_lh    := instDecoder.io.is_lh
-  io.is_lw    := instDecoder.io.is_lw
-  io.is_lbu   := instDecoder.io.is_lbu
-  io.is_lhu   := instDecoder.io.is_lhu
-  io.is_sb    := instDecoder.io.is_sb
-  io.is_sh    := instDecoder.io.is_sh
-  io.is_sw    := instDecoder.io.is_sw
-  io.is_addi  := instDecoder.io.is_addi
-  io.is_slti  := instDecoder.io.is_slti
-  io.is_sltiu := instDecoder.io.is_sltiu
-  io.is_xori  := instDecoder.io.is_xori
-  io.is_ori   := instDecoder.io.is_ori
-  io.is_andi  := instDecoder.io.is_andi
-  io.is_slli  := instDecoder.io.is_slli
-  io.is_srli  := instDecoder.io.is_srli
-  io.is_srai  := instDecoder.io.is_srai
-  io.is_add   := instDecoder.io.is_add
-  io.is_sub   := instDecoder.io.is_sub
-  io.is_sll   := instDecoder.io.is_sll
-  io.is_slt   := instDecoder.io.is_slt
-  io.is_sltu  := instDecoder.io.is_sltu
-  io.is_xor   := instDecoder.io.is_xor
-  io.is_srl   := instDecoder.io.is_srl
-  io.is_sra   := instDecoder.io.is_sra
-  io.is_or    := instDecoder.io.is_or
-  io.is_and   := instDecoder.io.is_and
-  // CSR 指令
-  io.is_csrrw  := instDecoder.io.is_csrrw
-  io.is_csrrs  := instDecoder.io.is_csrrs
-  io.is_csrrc  := instDecoder.io.is_csrrc
-  io.is_csrrwi := instDecoder.io.is_csrrwi
-  io.is_csrrsi := instDecoder.io.is_csrrsi
-  io.is_csrrci := instDecoder.io.is_csrrci
-  io.is_ecall  := instDecoder.io.is_ecall
-  io.is_ebreak := instDecoder.io.is_ebreak
-  io.is_mret   := instDecoder.io.is_mret
+  val isControl2 = dec2.io.is_jal || dec2.io.is_jalr ||
+                   dec2.io.is_beq || dec2.io.is_bne ||
+                   dec2.io.is_blt || dec2.io.is_bge ||
+                   dec2.io.is_bltu || dec2.io.is_bgeu ||
+                   dec2.io.is_ebreak ||
+                   dec2.io.is_csrrw || dec2.io.is_csrrs || dec2.io.is_csrrc ||
+                   dec2.io.is_csrrwi || dec2.io.is_csrrsi || dec2.io.is_csrrci ||
+                   dec2.io.is_ecall || dec2.io.is_mret
 
-  io.rd  := infoDecoder.io.rd
-  io.rs1 := infoDecoder.io.rs1
-  io.rs2 := infoDecoder.io.rs2
+  // 数据冒险：inst1 写入 rd，inst2 读取同一寄存器
+  val data_hazard = (dec1.io.rd =/= 0.U) &&
+                    (dec1.io.rd === dec2.io.rs1 || dec1.io.rd === dec2.io.rs2)
 
-  io.imm_i := infoDecoder.io.imm_i
-  io.imm_s := infoDecoder.io.imm_s
-  io.imm_b := infoDecoder.io.imm_b
-  io.imm_u := infoDecoder.io.imm_u
-  io.imm_j := infoDecoder.io.imm_j
-  io.imm12 := infoDecoder.io.imm_i
-  io.imm20 := infoDecoder.io.imm_u
+  // load-use 冒险：inst1 是 load 指令，inst2 使用其 rd
+  val is_load1 = dec1.io.is_lb || dec1.io.is_lh || dec1.io.is_lw ||
+                 dec1.io.is_lbu || dec1.io.is_lhu
+  val load_use = is_load1 && data_hazard
 
-  io.debug_inst := io.inst
+  // stall 条件：控制指令、CSR 指令、load-use 冒险
+  val stall_sig = isControl1 || load_use
+
+  // 当 inst2 是控制指令但 inst1 不是时也 stall（inst2 不能单独跳转）
+  val stall_sig2 = !isControl1 && isControl2
+  val final_stall = stall_sig || stall_sig2
+
+  io.idu_to_ifu.is_stall := final_stall
+
+  // ---------- GRF 读地址 ----------
+  io.idu_to_grf.dec1_redreg.rs1 := dec1.io.rs1
+  io.idu_to_grf.dec1_redreg.rs2 := dec1.io.rs2
+  io.idu_to_grf.dec2_redreg.rs1 := dec2.io.rs1
+  io.idu_to_grf.dec2_redreg.rs2 := dec2.io.rs2
+
+  // ---------- 第一条指令输出 ----------
+  io.idu_to_exu1.dec1_op.is_lui    := dec1.io.is_lui
+  io.idu_to_exu1.dec1_op.is_auipc  := dec1.io.is_auipc
+  io.idu_to_exu1.dec1_op.is_jal    := dec1.io.is_jal
+  io.idu_to_exu1.dec1_op.is_jalr   := dec1.io.is_jalr
+  io.idu_to_exu1.dec1_op.is_beq    := dec1.io.is_beq
+  io.idu_to_exu1.dec1_op.is_bne    := dec1.io.is_bne
+  io.idu_to_exu1.dec1_op.is_blt    := dec1.io.is_blt
+  io.idu_to_exu1.dec1_op.is_bge    := dec1.io.is_bge
+  io.idu_to_exu1.dec1_op.is_bltu   := dec1.io.is_bltu
+  io.idu_to_exu1.dec1_op.is_bgeu   := dec1.io.is_bgeu
+  io.idu_to_exu1.dec1_op.is_lb     := dec1.io.is_lb
+  io.idu_to_exu1.dec1_op.is_lh     := dec1.io.is_lh
+  io.idu_to_exu1.dec1_op.is_lw     := dec1.io.is_lw
+  io.idu_to_exu1.dec1_op.is_lbu    := dec1.io.is_lbu
+  io.idu_to_exu1.dec1_op.is_lhu    := dec1.io.is_lhu
+  io.idu_to_exu1.dec1_op.is_sb     := dec1.io.is_sb
+  io.idu_to_exu1.dec1_op.is_sh     := dec1.io.is_sh
+  io.idu_to_exu1.dec1_op.is_sw     := dec1.io.is_sw
+  io.idu_to_exu1.dec1_op.is_addi   := dec1.io.is_addi
+  io.idu_to_exu1.dec1_op.is_slti   := dec1.io.is_slti
+  io.idu_to_exu1.dec1_op.is_sltiu  := dec1.io.is_sltiu
+  io.idu_to_exu1.dec1_op.is_xori   := dec1.io.is_xori
+  io.idu_to_exu1.dec1_op.is_ori    := dec1.io.is_ori
+  io.idu_to_exu1.dec1_op.is_andi   := dec1.io.is_andi
+  io.idu_to_exu1.dec1_op.is_slli   := dec1.io.is_slli
+  io.idu_to_exu1.dec1_op.is_srli   := dec1.io.is_srli
+  io.idu_to_exu1.dec1_op.is_srai   := dec1.io.is_srai
+  io.idu_to_exu1.dec1_op.is_add    := dec1.io.is_add
+  io.idu_to_exu1.dec1_op.is_sub    := dec1.io.is_sub
+  io.idu_to_exu1.dec1_op.is_sll    := dec1.io.is_sll
+  io.idu_to_exu1.dec1_op.is_slt    := dec1.io.is_slt
+  io.idu_to_exu1.dec1_op.is_sltu   := dec1.io.is_sltu
+  io.idu_to_exu1.dec1_op.is_xor    := dec1.io.is_xor
+  io.idu_to_exu1.dec1_op.is_srl    := dec1.io.is_srl
+  io.idu_to_exu1.dec1_op.is_sra    := dec1.io.is_sra
+  io.idu_to_exu1.dec1_op.is_or     := dec1.io.is_or
+  io.idu_to_exu1.dec1_op.is_and    := dec1.io.is_and
+  io.idu_to_exu1.dec1_op.is_ebreak := dec1.io.is_ebreak
+  io.idu_to_exu1.dec1_op.is_csrrw  := dec1.io.is_csrrw
+  io.idu_to_exu1.dec1_op.is_csrrs  := dec1.io.is_csrrs
+  io.idu_to_exu1.dec1_op.is_csrrc  := dec1.io.is_csrrc
+  io.idu_to_exu1.dec1_op.is_csrrwi := dec1.io.is_csrrwi
+  io.idu_to_exu1.dec1_op.is_csrrsi := dec1.io.is_csrrsi
+  io.idu_to_exu1.dec1_op.is_csrrci := dec1.io.is_csrrci
+  io.idu_to_exu1.dec1_op.is_ecall  := dec1.io.is_ecall
+  io.idu_to_exu1.dec1_op.is_mret   := dec1.io.is_mret
+
+  io.idu_to_exu1.dec1_imm := dec1.io.imm
+  io.idu_to_exu1.dec1_rd  := dec1.io.rd
+
+  io.idu_to_exu1.dec1_val.rs1_val := io.grf_to_idu.dec1_value.inst1rs1_value
+  io.idu_to_exu1.dec1_val.rs2_val := io.grf_to_idu.dec1_value.inst1rs2_value
+  io.idu_to_exu1.dec1_val.nextpc  := io.ifu_to_idu.inst1_nextpc
+
+  // ---------- 第二条指令输出（stall 时全部清零）----------
+  io.idu_to_exu2.dec2_op.is_lui    := Mux(final_stall, false.B, dec2.io.is_lui)
+  io.idu_to_exu2.dec2_op.is_auipc  := Mux(final_stall, false.B, dec2.io.is_auipc)
+  io.idu_to_exu2.dec2_op.is_jal    := Mux(final_stall, false.B, dec2.io.is_jal)
+  io.idu_to_exu2.dec2_op.is_jalr   := Mux(final_stall, false.B, dec2.io.is_jalr)
+  io.idu_to_exu2.dec2_op.is_beq    := Mux(final_stall, false.B, dec2.io.is_beq)
+  io.idu_to_exu2.dec2_op.is_bne    := Mux(final_stall, false.B, dec2.io.is_bne)
+  io.idu_to_exu2.dec2_op.is_blt    := Mux(final_stall, false.B, dec2.io.is_blt)
+  io.idu_to_exu2.dec2_op.is_bge    := Mux(final_stall, false.B, dec2.io.is_bge)
+  io.idu_to_exu2.dec2_op.is_bltu   := Mux(final_stall, false.B, dec2.io.is_bltu)
+  io.idu_to_exu2.dec2_op.is_bgeu   := Mux(final_stall, false.B, dec2.io.is_bgeu)
+  io.idu_to_exu2.dec2_op.is_lb     := Mux(final_stall, false.B, dec2.io.is_lb)
+  io.idu_to_exu2.dec2_op.is_lh     := Mux(final_stall, false.B, dec2.io.is_lh)
+  io.idu_to_exu2.dec2_op.is_lw     := Mux(final_stall, false.B, dec2.io.is_lw)
+  io.idu_to_exu2.dec2_op.is_lbu    := Mux(final_stall, false.B, dec2.io.is_lbu)
+  io.idu_to_exu2.dec2_op.is_lhu    := Mux(final_stall, false.B, dec2.io.is_lhu)
+  io.idu_to_exu2.dec2_op.is_sb     := Mux(final_stall, false.B, dec2.io.is_sb)
+  io.idu_to_exu2.dec2_op.is_sh     := Mux(final_stall, false.B, dec2.io.is_sh)
+  io.idu_to_exu2.dec2_op.is_sw     := Mux(final_stall, false.B, dec2.io.is_sw)
+  io.idu_to_exu2.dec2_op.is_addi   := Mux(final_stall, false.B, dec2.io.is_addi)
+  io.idu_to_exu2.dec2_op.is_slti   := Mux(final_stall, false.B, dec2.io.is_slti)
+  io.idu_to_exu2.dec2_op.is_sltiu  := Mux(final_stall, false.B, dec2.io.is_sltiu)
+  io.idu_to_exu2.dec2_op.is_xori   := Mux(final_stall, false.B, dec2.io.is_xori)
+  io.idu_to_exu2.dec2_op.is_ori    := Mux(final_stall, false.B, dec2.io.is_ori)
+  io.idu_to_exu2.dec2_op.is_andi   := Mux(final_stall, false.B, dec2.io.is_andi)
+  io.idu_to_exu2.dec2_op.is_slli   := Mux(final_stall, false.B, dec2.io.is_slli)
+  io.idu_to_exu2.dec2_op.is_srli   := Mux(final_stall, false.B, dec2.io.is_srli)
+  io.idu_to_exu2.dec2_op.is_srai   := Mux(final_stall, false.B, dec2.io.is_srai)
+  io.idu_to_exu2.dec2_op.is_add    := Mux(final_stall, false.B, dec2.io.is_add)
+  io.idu_to_exu2.dec2_op.is_sub    := Mux(final_stall, false.B, dec2.io.is_sub)
+  io.idu_to_exu2.dec2_op.is_sll    := Mux(final_stall, false.B, dec2.io.is_sll)
+  io.idu_to_exu2.dec2_op.is_slt    := Mux(final_stall, false.B, dec2.io.is_slt)
+  io.idu_to_exu2.dec2_op.is_sltu   := Mux(final_stall, false.B, dec2.io.is_sltu)
+  io.idu_to_exu2.dec2_op.is_xor    := Mux(final_stall, false.B, dec2.io.is_xor)
+  io.idu_to_exu2.dec2_op.is_srl    := Mux(final_stall, false.B, dec2.io.is_srl)
+  io.idu_to_exu2.dec2_op.is_sra    := Mux(final_stall, false.B, dec2.io.is_sra)
+  io.idu_to_exu2.dec2_op.is_or     := Mux(final_stall, false.B, dec2.io.is_or)
+  io.idu_to_exu2.dec2_op.is_and    := Mux(final_stall, false.B, dec2.io.is_and)
+  io.idu_to_exu2.dec2_op.is_ebreak := Mux(final_stall, false.B, dec2.io.is_ebreak)
+  io.idu_to_exu2.dec2_op.is_csrrw  := Mux(final_stall, false.B, dec2.io.is_csrrw)
+  io.idu_to_exu2.dec2_op.is_csrrs  := Mux(final_stall, false.B, dec2.io.is_csrrs)
+  io.idu_to_exu2.dec2_op.is_csrrc  := Mux(final_stall, false.B, dec2.io.is_csrrc)
+  io.idu_to_exu2.dec2_op.is_csrrwi := Mux(final_stall, false.B, dec2.io.is_csrrwi)
+  io.idu_to_exu2.dec2_op.is_csrrsi := Mux(final_stall, false.B, dec2.io.is_csrrsi)
+  io.idu_to_exu2.dec2_op.is_csrrci := Mux(final_stall, false.B, dec2.io.is_csrrci)
+  io.idu_to_exu2.dec2_op.is_ecall  := Mux(final_stall, false.B, dec2.io.is_ecall)
+  io.idu_to_exu2.dec2_op.is_mret   := Mux(final_stall, false.B, dec2.io.is_mret)
+
+  io.idu_to_exu2.dec2_imm := Mux(final_stall, 0.U(32.W), dec2.io.imm)
+  io.idu_to_exu2.dec2_rd  := Mux(final_stall, 0.U(5.W), dec2.io.rd)
+
+  io.idu_to_exu2.dec2_val.rs1_val := Mux(final_stall, 0.U(32.W), io.grf_to_idu.dec2_value.inst2rs1_value)
+  io.idu_to_exu2.dec2_val.rs2_val := Mux(final_stall, 0.U(32.W), io.grf_to_idu.dec2_value.inst2rs2_value)
+  io.idu_to_exu2.dec2_val.nextpc  := Mux(final_stall, 0.U(32.W), io.ifu_to_idu.inst2_nextpc)
+
+  // ---------- CSR 直通到 top ----------
+  io.idu_to_top.is_csrrw  := dec1.io.is_csrrw
+  io.idu_to_top.is_csrrs  := dec1.io.is_csrrs
+  io.idu_to_top.is_csrrc  := dec1.io.is_csrrc
+  io.idu_to_top.is_csrrwi := dec1.io.is_csrrwi
+  io.idu_to_top.is_csrrsi := dec1.io.is_csrrsi
+  io.idu_to_top.is_csrrci := dec1.io.is_csrrci
+  io.idu_to_top.is_ecall  := dec1.io.is_ecall
+  io.idu_to_top.is_mret   := dec1.io.is_mret
+  io.idu_to_top.is_ebreak := dec1.io.is_ebreak
+  io.idu_to_top.inst1_pc  := io.ifu_to_idu.inst1_pc
+  io.idu_to_top.inst1     := io.ifu_to_idu.inst1
+  io.idu_to_top.rs1_val   := io.grf_to_idu.dec1_value.inst1rs1_value
+
+  // ---------- 调试输出 ----------
+  io.idu_debug.debug_inst1 := dec1.io.debug_inst
+  io.idu_debug.debug_inst2 := Mux(final_stall, 0.U(32.W), dec2.io.debug_inst)
+  io.idu_debug.is_stall    := final_stall
 }

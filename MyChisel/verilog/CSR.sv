@@ -15,7 +15,11 @@ module CSR(
   output        io_take_trap,
   output [31:0] io_trap_pc,
   input         io_inst_retire,
-  output [31:0] io_debug_mepc
+  output [63:0] io_debug_mcycle,
+                io_debug_minstret,
+  output [31:0] io_debug_mstatus,
+                io_debug_mcause,
+                io_debug_mepc
 );
 
   reg  [63:0] mcycle_reg;
@@ -142,6 +146,10 @@ module CSR(
   assign io_csr_rdata = io_csr_rdata_0;
   assign io_take_trap = io_is_ebreak | io_ecall;
   assign io_trap_pc = mtvec_reg;
+  assign io_debug_mcycle = mcycle_reg;
+  assign io_debug_minstret = minstret_reg;
+  assign io_debug_mstatus = mstatus_reg;
+  assign io_debug_mcause = mcause_reg;
   assign io_debug_mepc = mepc_reg;
 endmodule
 

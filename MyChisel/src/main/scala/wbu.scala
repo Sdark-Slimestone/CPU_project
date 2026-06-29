@@ -1,86 +1,65 @@
-package rv32ecsr
+package R1322IAeCSR
 
 import chisel3._
 import chisel3.util._
 
-class WBU extends Module {
+// 双发射写回单元：处理两条指令的写回冲突并输出到双端口寄存器堆
+// CSR指令的写回由top层直接处理（CSR写GRF），不经过此WBU
+class wbu extends Module {
   val io = IO(new Bundle {
-    val is_lui    = Input(Bool())
-    val is_auipc  = Input(Bool())
-    val is_jal    = Input(Bool())
-    val is_jalr   = Input(Bool())
-    val is_lb     = Input(Bool())
-    val is_lh     = Input(Bool())
-    val is_lw     = Input(Bool())
-    val is_lbu    = Input(Bool())
-    val is_lhu    = Input(Bool())
-    val is_addi   = Input(Bool())
-    val is_slti   = Input(Bool())
-    val is_sltiu  = Input(Bool())
-    val is_xori   = Input(Bool())
-    val is_ori    = Input(Bool())
-    val is_andi   = Input(Bool())
-    val is_slli   = Input(Bool())
-    val is_srli   = Input(Bool())
-    val is_srai   = Input(Bool())
-    val is_add    = Input(Bool())
-    val is_sub    = Input(Bool())
-    val is_sll    = Input(Bool())
-    val is_slt    = Input(Bool())
-    val is_sltu   = Input(Bool())
-    val is_xor    = Input(Bool())
-    val is_srl    = Input(Bool())
-    val is_sra    = Input(Bool())
-    val is_or     = Input(Bool())
-    val is_and    = Input(Bool())
-    // CSR 写回
-    val is_csrrw  = Input(Bool())
-    val is_csrrs  = Input(Bool())
-    val is_csrrc  = Input(Bool())
-    val is_csrrwi = Input(Bool())
-    val is_csrrsi = Input(Bool())
-    val is_csrrci = Input(Bool())
-
-    val inputfromALU = Input(UInt(32.W))
-    val inputfromPC  = Input(UInt(32.W))
-    val inputfromRAM = Input(UInt(32.W))
-    val inputfromCSR = Input(UInt(32.W))   // CSR 读出的值
-
-    val wbData = Output(UInt(32.W))
-    val regWen = Output(Bool())
-
-    val debug_regWen = Output(Bool())
-    val debug_wbData = Output(UInt(32.W))
+    // 输出给 GRF 的两个写端口
+    val wbu_to_grf = new Bundle {
+      val wr1 = new Bundle {
+        val addr = Output(UInt(5.W))
+        val data = Output(UInt(32.W))
+      }
+      val wr2 = new Bundle {
+        val addr = Output(UInt(5.W))
+        val data = Output(UInt(32.W))
+      }
+    }
+    // LSU1 输入
+    val lsu_to_wbu_1 = new Bundle {
+      val rd = Input(UInt(5.W))
+      val grf_wb_data = Input(UInt(32.W))
+    }
+    // LSU2 输入
+    val lsu_to_wbu_2 = new Bundle {
+      val rd = Input(UInt(5.W))
+      val grf_wb_data = Input(UInt(32.W))
+    }
+    // 调试端口
+    val debug = new Bundle {
+      val valid1    = Output(Bool())
+      val valid2    = Output(Bool())
+      val conflict  = Output(Bool())
+      val rd1       = Output(UInt(5.W))
+      val rd2       = Output(UInt(5.W))
+      val wr1_addr  = Output(UInt(5.W))
+      val wr2_addr  = Output(UInt(5.W))
+    }
   })
 
-  // 所有需要写通用寄存器的指令（包括 CSR 指令）
-  val need_wb = io.is_lui || io.is_auipc || io.is_jal || io.is_jalr ||
-                io.is_lb || io.is_lh || io.is_lw || io.is_lbu || io.is_lhu ||
-                io.is_addi || io.is_slti || io.is_sltiu || io.is_xori ||
-                io.is_ori || io.is_andi || io.is_slli || io.is_srli || io.is_srai ||
-                io.is_add || io.is_sub || io.is_sll || io.is_slt || io.is_sltu ||
-                io.is_xor || io.is_srl || io.is_sra || io.is_or || io.is_and ||
-                io.is_csrrw || io.is_csrrs || io.is_csrrc ||
-                io.is_csrrwi || io.is_csrrsi || io.is_csrrci
+  // 判断写请求是否有效（rd != 0）
+  val valid1 = io.lsu_to_wbu_1.rd =/= 0.U
+  val valid2 = io.lsu_to_wbu_2.rd =/= 0.U
 
-  io.regWen := need_wb
+  // 检测地址冲突（两个有效且 rd 相同）
+  val conflict = valid1 && valid2 && (io.lsu_to_wbu_1.rd === io.lsu_to_wbu_2.rd)
 
-  // CSR 指令判断（局部变量，非 IO）
-  val is_csr = io.is_csrrw || io.is_csrrs || io.is_csrrc ||
-               io.is_csrrwi || io.is_csrrsi || io.is_csrrci
+  // 分配写端口
+  io.wbu_to_grf.wr2.addr := Mux(valid2, io.lsu_to_wbu_2.rd, 0.U)
+  io.wbu_to_grf.wr2.data := io.lsu_to_wbu_2.grf_wb_data
 
-  io.wbData := MuxCase(0.U(32.W), Seq(
-    is_csr                               -> io.inputfromCSR,
-    io.is_lui                            -> io.inputfromALU,
-    io.is_auipc                          -> io.inputfromALU,
-    (io.is_jal || io.is_jalr)            -> io.inputfromPC,
-    (io.is_lb || io.is_lh || io.is_lw || io.is_lbu || io.is_lhu) -> io.inputfromRAM,
-    (io.is_addi || io.is_slti || io.is_sltiu || io.is_xori || io.is_ori || io.is_andi ||
-     io.is_slli || io.is_srli || io.is_srai ||
-     io.is_add || io.is_sub || io.is_sll || io.is_slt || io.is_sltu ||
-     io.is_xor || io.is_srl || io.is_sra || io.is_or || io.is_and) -> io.inputfromALU
-  ))
+  io.wbu_to_grf.wr1.addr := Mux(valid1 && !conflict, io.lsu_to_wbu_1.rd, 0.U)
+  io.wbu_to_grf.wr1.data := io.lsu_to_wbu_1.grf_wb_data
 
-  io.debug_regWen := io.regWen
-  io.debug_wbData := io.wbData
+  // 调试输出
+  io.debug.valid1    := valid1
+  io.debug.valid2    := valid2
+  io.debug.conflict  := conflict
+  io.debug.rd1       := io.lsu_to_wbu_1.rd
+  io.debug.rd2       := io.lsu_to_wbu_2.rd
+  io.debug.wr1_addr  := io.wbu_to_grf.wr1.addr
+  io.debug.wr2_addr  := io.wbu_to_grf.wr2.addr
 }

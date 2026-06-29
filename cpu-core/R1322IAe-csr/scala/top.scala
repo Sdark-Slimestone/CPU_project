@@ -4,6 +4,25 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 
+// 双端口黑盒存储器，通过 DPI-C 与 C++ 交互
+class DPIMemory extends BlackBox {
+  val io = IO(new Bundle {
+    val io_clk = Input(Clock())
+    val wen    = Input(Bool())
+    val waddr  = Input(UInt(32.W))
+    val wdata  = Input(UInt(32.W))
+    val wmask  = Input(UInt(4.W))
+    val ren1   = Input(Bool())
+    val raddr1 = Input(UInt(32.W))
+    val rdata1 = Output(UInt(32.W))
+    val ren2   = Input(Bool())
+    val raddr2 = Input(UInt(32.W))
+    val rdata2 = Output(UInt(32.W))
+    val ebreak = Input(Bool())
+  })
+  override def desiredName = "DPI_Memory"
+}
+
 class top extends Module {
   val io = IO(new Bundle {
     // ---------- IFU debug ----------

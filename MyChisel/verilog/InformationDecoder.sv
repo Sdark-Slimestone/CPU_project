@@ -47,11 +47,7 @@ module InformationDecoder(
   output [4:0]  io_rd,
                 io_rs1,
                 io_rs2,
-  output [31:0] io_imm_i,
-                io_imm_s,
-                io_imm_b,
-                io_imm_u,
-                io_imm_j
+  output [31:0] io_imm
 );
 
   wire _csr_use_rs1_T = io_is_csrrw | io_is_csrrs;
@@ -81,24 +77,23 @@ module InformationDecoder(
     | io_is_srl | io_is_sra | io_is_or | io_is_and
       ? io_inst[24:20]
       : 5'h0;
-  assign io_imm_i =
+  assign io_imm =
     io_is_jalr | io_is_lb | io_is_lh | io_is_lw | io_is_lbu | io_is_lhu | io_is_addi
     | io_is_slti | io_is_sltiu | io_is_xori | io_is_ori | io_is_andi | io_is_slli
     | io_is_srli | io_is_srai
       ? {{20{io_inst[31]}}, io_inst[31:20]}
-      : 32'h0;
-  assign io_imm_s =
-    io_is_sb | io_is_sh | io_is_sw
-      ? {{20{io_inst[31]}}, io_inst[31:25], io_inst[11:7]}
-      : 32'h0;
-  assign io_imm_b =
-    _need_imm_b_T | io_is_blt | io_is_bge | io_is_bltu | io_is_bgeu
-      ? {{20{io_inst[31]}}, io_inst[7], io_inst[30:25], io_inst[11:8], 1'h0}
-      : 32'h0;
-  assign io_imm_u = need_imm_u ? {io_inst[31:12], 12'h0} : 32'h0;
-  assign io_imm_j =
-    io_is_jal
-      ? {{12{io_inst[31]}}, io_inst[19:12], io_inst[20], io_inst[30:21], 1'h0}
-      : 32'h0;
+      : io_is_sb | io_is_sh | io_is_sw
+          ? {{20{io_inst[31]}}, io_inst[31:25], io_inst[11:7]}
+          : _need_imm_b_T | io_is_blt | io_is_bge | io_is_bltu | io_is_bgeu
+              ? {{20{io_inst[31]}}, io_inst[7], io_inst[30:25], io_inst[11:8], 1'h0}
+              : need_imm_u
+                  ? {io_inst[31:12], 12'h0}
+                  : io_is_jal
+                      ? {{12{io_inst[31]}},
+                         io_inst[19:12],
+                         io_inst[20],
+                         io_inst[30:21],
+                         1'h0}
+                      : 32'h0;
 endmodule
 

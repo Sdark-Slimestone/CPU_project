@@ -1,6 +1,6 @@
 [debug] [zinc] IncrementalCompile -----------
 [debug] IncrementalCompile.incrementalCompile
-[debug] previous = Stamps for: 40 products, 8 sources, 2 libraries
-[debug] current source = Set(${BASE}/src/main/scala/GRF.scala, ${BASE}/src/main/scala/wbu.scala, ${BASE}/src/main/scala/idu.scala, ${BASE}/src/main/scala/top.scala, ${BASE}/src/main/scala/ifu.scala, ${BASE}/src/main/scala/csr.scala, ${BASE}/src/main/scala/lsu.scala, ${BASE}/src/main/scala/exu.scala)
+[debug] previous = Stamps for: 95 products, 11 sources, 2 libraries
+[debug] current source = Set(${BASE}/src/main/scala/GRF.scala, ${BASE}/src/main/scala/wbu.scala, ${BASE}/src/main/scala/idu.scala, ${BASE}/src/main/scala/decoder.scala, ${BASE}/src/main/scala/top.scala, ${BASE}/src/main/scala/ifu.scala, ${BASE}/src/main/scala/imem.scala, ${BASE}/src/main/scala/csr.scala, ${BASE}/src/main/scala/dmem.scala, ${BASE}/src/main/scala/lsu.scala, ${BASE}/src/main/scala/exu.scala)
 [debug] > initialChanges = InitialChanges(Changes(added = Set(), removed = Set(), changed = Set(), unmodified = ...),Set(),Set(),API Changes: Set())
 [debug] No changes
