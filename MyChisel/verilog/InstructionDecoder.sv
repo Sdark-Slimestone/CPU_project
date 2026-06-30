@@ -60,13 +60,11 @@ module InstructionDecoder(
   wire _io_is_sw_T = io_inst[6:0] == 7'h23;
   wire _io_is_srai_T = io_inst[6:0] == 7'h13;
   wire _io_is_csrrc_T = io_inst[14:12] == 3'h3;
-  wire _io_is_mret_T_9 = io_inst[31:25] == 7'h0;
+  wire _io_is_mret_T_11 = io_inst[31:25] == 7'h0;
   wire _io_is_sra_T_3 = io_inst[31:25] == 7'h20;
   wire _io_is_and_T = io_inst[6:0] == 7'h33;
   wire is_system = io_inst[6:0] == 7'h73;
   wire is_csr = is_system & (|(io_inst[14:12]));
-  wire _io_is_mret_T_5 = io_inst[19:15] == 5'h0;
-  wire _io_is_mret_T_7 = io_inst[11:7] == 5'h0;
   assign io_is_lui = io_inst[6:0] == 7'h37;
   assign io_is_auipc = io_inst[6:0] == 7'h17;
   assign io_is_jal = io_inst[6:0] == 7'h6F;
@@ -91,19 +89,19 @@ module InstructionDecoder(
   assign io_is_xori = _io_is_srai_T & _io_is_xor_T_1;
   assign io_is_ori = _io_is_srai_T & _io_is_csrrsi_T;
   assign io_is_andi = _io_is_srai_T & (&(io_inst[14:12]));
-  assign io_is_slli = _io_is_srai_T & _io_is_csrrw_T & _io_is_mret_T_9;
-  assign io_is_srli = _io_is_srai_T & _io_is_csrrwi_T & _io_is_mret_T_9;
+  assign io_is_slli = _io_is_srai_T & _io_is_csrrw_T & _io_is_mret_T_11;
+  assign io_is_srli = _io_is_srai_T & _io_is_csrrwi_T & _io_is_mret_T_11;
   assign io_is_srai = _io_is_srai_T & _io_is_csrrwi_T & _io_is_sra_T_3;
-  assign io_is_add = _io_is_and_T & _io_is_mret_T & _io_is_mret_T_9;
+  assign io_is_add = _io_is_and_T & _io_is_mret_T & _io_is_mret_T_11;
   assign io_is_sub = _io_is_and_T & _io_is_mret_T & _io_is_sra_T_3;
-  assign io_is_sll = _io_is_and_T & _io_is_csrrw_T & _io_is_mret_T_9;
-  assign io_is_slt = _io_is_and_T & _io_is_csrrs_T & _io_is_mret_T_9;
-  assign io_is_sltu = _io_is_and_T & _io_is_csrrc_T & _io_is_mret_T_9;
-  assign io_is_xor = _io_is_and_T & _io_is_xor_T_1 & _io_is_mret_T_9;
-  assign io_is_srl = _io_is_and_T & _io_is_csrrwi_T & _io_is_mret_T_9;
+  assign io_is_sll = _io_is_and_T & _io_is_csrrw_T & _io_is_mret_T_11;
+  assign io_is_slt = _io_is_and_T & _io_is_csrrs_T & _io_is_mret_T_11;
+  assign io_is_sltu = _io_is_and_T & _io_is_csrrc_T & _io_is_mret_T_11;
+  assign io_is_xor = _io_is_and_T & _io_is_xor_T_1 & _io_is_mret_T_11;
+  assign io_is_srl = _io_is_and_T & _io_is_csrrwi_T & _io_is_mret_T_11;
   assign io_is_sra = _io_is_and_T & _io_is_csrrwi_T & _io_is_sra_T_3;
-  assign io_is_or = _io_is_and_T & _io_is_csrrsi_T & _io_is_mret_T_9;
-  assign io_is_and = _io_is_and_T & (&(io_inst[14:12])) & _io_is_mret_T_9;
+  assign io_is_or = _io_is_and_T & _io_is_csrrsi_T & _io_is_mret_T_11;
+  assign io_is_and = _io_is_and_T & (&(io_inst[14:12])) & _io_is_mret_T_11;
   assign io_is_csrrw = is_csr & _io_is_csrrw_T;
   assign io_is_csrrs = is_csr & _io_is_csrrs_T;
   assign io_is_csrrc = is_csr & _io_is_csrrc_T;
@@ -111,13 +109,13 @@ module InstructionDecoder(
   assign io_is_csrrsi = is_csr & _io_is_csrrsi_T;
   assign io_is_csrrci = is_csr & (&(io_inst[14:12]));
   assign io_is_ecall =
-    is_system & _io_is_mret_T & io_inst[31:20] == 12'h0 & _io_is_mret_T_5
-    & _io_is_mret_T_7 & _io_is_mret_T_9;
+    is_system & _io_is_mret_T & io_inst[31:20] == 12'h0 & ~(|(io_inst[19:15]))
+    & ~(|(io_inst[11:7])) & _io_is_mret_T_11;
   assign io_is_ebreak =
-    is_system & _io_is_mret_T & io_inst[31:20] == 12'h1 & _io_is_mret_T_5
-    & _io_is_mret_T_7 & _io_is_mret_T_9;
+    is_system & _io_is_mret_T & io_inst[31:20] == 12'h1 & ~(|(io_inst[19:15]))
+    & ~(|(io_inst[11:7])) & _io_is_mret_T_11;
   assign io_is_mret =
-    is_system & _io_is_mret_T & io_inst[31:20] == 12'hC0 & _io_is_mret_T_5
-    & _io_is_mret_T_7 & _io_is_mret_T_9;
+    is_system & _io_is_mret_T & io_inst[31:20] == 12'hC0 & ~(|(io_inst[19:15]))
+    & ~(|(io_inst[11:7])) & _io_is_mret_T_11;
 endmodule
 

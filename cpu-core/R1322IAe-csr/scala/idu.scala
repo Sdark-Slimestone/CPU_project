@@ -3,7 +3,6 @@ package R1322IAeCSR
 import chisel3._
 import chisel3.util._
 
-// 指令解码与发射单元，支持双发射，CSR指令强制单发射
 class idu extends Module {
   val io = IO(new Bundle {
     // 来自 IFU
@@ -91,6 +90,7 @@ class idu extends Module {
         val is_ecall  = Output(Bool())
         val is_mret   = Output(Bool())
       }
+      // 合并后的立即数
       val dec1_imm = Output(UInt(32.W))
       val dec1_val = new Bundle {
         val rs1_val = Output(UInt(32.W))
@@ -151,6 +151,7 @@ class idu extends Module {
         val is_ecall  = Output(Bool())
         val is_mret   = Output(Bool())
       }
+      // 合并后的立即数
       val dec2_imm = Output(UInt(32.W))
       val dec2_val = new Bundle {
         val rs1_val = Output(UInt(32.W))
@@ -189,7 +190,7 @@ class idu extends Module {
     }
   })
 
-  // 实例化译码器
+  // 实例化译码器（使用含CSR的 decoder）
   val dec1 = Module(new decoder)
   val dec2 = Module(new decoder)
   dec1.io.inst := io.ifu_to_idu.inst1
@@ -197,35 +198,50 @@ class idu extends Module {
 
   // ---------- 冒险检测 ----------
   // 控制指令（含 CSR）强制单发射
-  val isControl1 = dec1.io.is_jal || dec1.io.is_jalr ||
-                   dec1.io.is_beq || dec1.io.is_bne ||
-                   dec1.io.is_blt || dec1.io.is_bge ||
+  val isControl1 = dec1.io.is_jal  || dec1.io.is_jalr ||
+                   dec1.io.is_beq  || dec1.io.is_bne  ||
+                   dec1.io.is_blt  || dec1.io.is_bge  ||
                    dec1.io.is_bltu || dec1.io.is_bgeu ||
                    dec1.io.is_ebreak ||
                    dec1.io.is_csrrw || dec1.io.is_csrrs || dec1.io.is_csrrc ||
                    dec1.io.is_csrrwi || dec1.io.is_csrrsi || dec1.io.is_csrrci ||
                    dec1.io.is_ecall || dec1.io.is_mret
 
-  val isControl2 = dec2.io.is_jal || dec2.io.is_jalr ||
-                   dec2.io.is_beq || dec2.io.is_bne ||
-                   dec2.io.is_blt || dec2.io.is_bge ||
+  val isControl2 = dec2.io.is_jal  || dec2.io.is_jalr ||
+                   dec2.io.is_beq  || dec2.io.is_bne  ||
+                   dec2.io.is_blt  || dec2.io.is_bge  ||
                    dec2.io.is_bltu || dec2.io.is_bgeu ||
                    dec2.io.is_ebreak ||
                    dec2.io.is_csrrw || dec2.io.is_csrrs || dec2.io.is_csrrc ||
                    dec2.io.is_csrrwi || dec2.io.is_csrrsi || dec2.io.is_csrrci ||
                    dec2.io.is_ecall || dec2.io.is_mret
 
-  // 数据冒险：inst1 写入 rd，inst2 读取同一寄存器
-  val data_hazard = (dec1.io.rd =/= 0.U) &&
-                    (dec1.io.rd === dec2.io.rs1 || dec1.io.rd === dec2.io.rs2)
+  val isStore1 = dec1.io.is_sb || dec1.io.is_sh || dec1.io.is_sw
+  val isStore2 = dec2.io.is_sb || dec2.io.is_sh || dec2.io.is_sw
+  val isLoad1  = dec1.io.is_lb || dec1.io.is_lbu || dec1.io.is_lh || dec1.io.is_lhu || dec1.io.is_lw
+  val isLoad2  = dec2.io.is_lb || dec2.io.is_lbu || dec2.io.is_lh || dec2.io.is_lhu || dec2.io.is_lw
 
-  // load-use 冒险：inst1 是 load 指令，inst2 使用其 rd
-  val is_load1 = dec1.io.is_lb || dec1.io.is_lh || dec1.io.is_lw ||
-                 dec1.io.is_lbu || dec1.io.is_lhu
-  val load_use = is_load1 && data_hazard
+  //bank计算
+  val load1imm_low = dec1.io.imm(0)
+  val load2imm_low = dec2.io.imm(0)
+  val load1rs1_low = io.grf_to_idu.dec1_value.inst1rs1_value(0)
+  val load2rs1_low = io.grf_to_idu.dec2_value.inst2rs1_value(0)
+  val load1addr_low = load1imm_low ^ load1rs1_low
+  val load2addr_low = load2imm_low ^ load2rs1_low
 
-  // stall 条件：控制指令、CSR 指令、load-use 冒险
-  val stall_sig = isControl1 || load_use
+  // RAW: 指令1写寄存器，且被指令2作为源操作数
+  val raw = (dec1.io.rd =/= 0.U) &&
+            ((dec1.io.rd === dec2.io.rs1) || (dec1.io.rd === dec2.io.rs2))
+
+  // 内存冒险
+  val ramraw = (isStore1 && isLoad2) &&
+               (io.grf_to_idu.dec1_value.inst1rs1_value === io.grf_to_idu.dec2_value.inst2rs1_value) &&
+               (dec1.io.imm === dec2.io.imm)
+  val rambank_conflict = (isLoad1 && isLoad2) && (load1addr_low === load2addr_low)
+  val ramwaw = isStore1 && isStore2
+
+  // stall 条件
+  val stall_sig = raw || isControl1 || ramraw || ramwaw || rambank_conflict
 
   // 当 inst2 是控制指令但 inst1 不是时也 stall（inst2 不能单独跳转）
   val stall_sig2 = !isControl1 && isControl2

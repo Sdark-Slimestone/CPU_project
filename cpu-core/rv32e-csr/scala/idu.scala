@@ -137,10 +137,10 @@ class InstructionDecoder extends Module {
                   (io.inst(31, 20) === 1.U) && (rs1 === 0.U) &&
                   (rd === 0.U) && (funct7 === 0.U)
 
-  // mret: funct3=0, imm=0x302, rs1=0, rd=0
+  // mret: funct3=0, funct12=0x302, rs1=0, rd=0
   io.is_mret := is_system && (funct3 === 0.U) &&
-                (io.inst(31, 20) === "b0011000000".U(12.W)) && (rs1 === 0.U) &&
-                (rd === 0.U) && (funct7 === 0.U)
+                (io.inst(31, 20) === 0x302.U(12.W)) && (rs1 === 0.U) &&
+                (rd === 0.U)
 }
 
 class InformationDecoder extends Module {

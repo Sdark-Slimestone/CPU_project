@@ -1,7 +1,0 @@
-[error] chisel3.package$ChiselException: Connection between left (EXU.io.exu_to_lsu: IO[AnonymousBundle]) and source (LSU.io.exu_to_lsu: IO[AnonymousBundle]) failed @.op.sw: Left Record missing field (sw).
-[error] 	at ... ()
-[error] 	at R1322IAeCSR.top.<init>(top.scala:172)
-[error] 	at R1322IAeCSR.top$.$anonfun$new$143(top.scala:330)
-[error] 	at ... ()
-[error] 	at ... (Stack trace trimmed to user code only. Rerun with --full-stacktrace to see the full stack trace)
-[error] (Compile / run) chisel3.package$ChiselException: Connection between left (EXU.io.exu_to_lsu: IO[AnonymousBundle]) and source (LSU.io.exu_to_lsu: IO[AnonymousBundle]) failed @.op.sw: Left Record missing field (sw).

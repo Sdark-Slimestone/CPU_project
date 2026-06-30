@@ -54,7 +54,7 @@ unsigned int pmem_read(unsigned int addr) {
 }
 
 void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
-    if (addr == 0x10000000) {  // 串口输出
+    if (addr == 0xa00003f8) {  // 串口输出
         if (mask & 0x1) {
             putchar((char)(data & 0xFF));
             fflush(stdout);

@@ -154,12 +154,11 @@ class CSR extends Module {
   val take_trap_wire = Wire(Bool())
   take_trap_wire := false.B
 
-  // ecall: 触发环境调用异常，mepc 设为 ecall+4（硬件跳过 ecall 指令）
-  // AM 的 cte.c 中 yield 使用 ecall，但 cte_init 的异常处理没有为 ecall 添加 +4，
-  // 所以必须在硬件中直接设为 pc+4
+  // ecall: 触发环境调用异常
+  // mepc 设为 ecall 本身，trap.S 中的 addi t2,t2,4 负责跳过 ecall
   when (io.ecall) {
-    mepc_reg  := io.current_pc + 4.U
-    mcause_reg := 11.U(32.W)  // ECALL from M-mode
+    mepc_reg  := io.current_pc
+    mcause_reg := 8.U(32.W)   // ECALL exception (matches NEMU)
     mtval_reg  := 0.U(32.W)
     take_trap_wire := true.B
   }

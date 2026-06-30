@@ -184,6 +184,10 @@ class EXU extends Module {
     val is_sra    = Input(Bool())
     val is_or     = Input(Bool())
     val is_and    = Input(Bool())
+    // CSR 指令
+    val is_csrrw  = Input(Bool())
+    val is_csrrs  = Input(Bool())
+    val is_csrrc  = Input(Bool())
 
     // 寄存器地址
     val rs1_addr = Input(UInt(5.W))
@@ -244,7 +248,8 @@ class EXU extends Module {
                 io.is_addi || io.is_slti || io.is_sltiu || io.is_xori ||
                 io.is_ori || io.is_andi || io.is_slli || io.is_srli || io.is_srai ||
                 io.is_add || io.is_sub || io.is_sll || io.is_slt || io.is_sltu ||
-                io.is_xor || io.is_srl || io.is_sra || io.is_or || io.is_and
+                io.is_xor || io.is_srl || io.is_sra || io.is_or || io.is_and ||
+                io.is_csrrw || io.is_csrrs || io.is_csrrc
 
   val use_rs2 = io.is_beq || io.is_bne || io.is_blt || io.is_bge || io.is_bltu || io.is_bgeu ||
                 io.is_sb || io.is_sh || io.is_sw ||

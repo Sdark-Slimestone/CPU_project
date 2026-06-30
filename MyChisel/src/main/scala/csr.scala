@@ -127,6 +127,7 @@ class CSR extends Module {
   io.csr_rdata := csr_rdata_wire
 
   // ============== CSR 写逻辑 ==============
+  // 计算 CSR 写入值（支持 csrrw/csrrs/csrrc 原子操作）
   val csr_write_val = Wire(UInt(32.W))
   val t_rs1 = Mux(io.use_imm, Cat(0.U(27.W), io.rs1_val(4, 0)), io.rs1_val)
 
@@ -153,9 +154,10 @@ class CSR extends Module {
   val take_trap_wire = Wire(Bool())
   take_trap_wire := false.B
 
-  // ecall: 触发环境调用异常，mepc 设为 ecall+4
+  // ecall: 触发环境调用异常
+  // mepc 设为 ecall 本身，trap.S 中的 addi t2,t2,4 负责跳过 ecall
   when (io.ecall) {
-    mepc_reg  := io.current_pc + 4.U
+    mepc_reg  := io.current_pc
     mcause_reg := 11.U(32.W)  // ECALL from M-mode
     mtval_reg  := 0.U(32.W)
     take_trap_wire := true.B

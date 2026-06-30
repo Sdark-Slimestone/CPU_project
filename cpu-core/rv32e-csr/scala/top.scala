@@ -128,6 +128,10 @@ class top extends Module {
   exu.io.is_sra   := idu.io.is_sra
   exu.io.is_or    := idu.io.is_or
   exu.io.is_and   := idu.io.is_and
+  // CSR 指令
+  exu.io.is_csrrw := idu.io.is_csrrw
+  exu.io.is_csrrs := idu.io.is_csrrs
+  exu.io.is_csrrc := idu.io.is_csrrc
 
   exu.io.rs1_addr := idu.io.rs1
   exu.io.rs2_addr := idu.io.rs2

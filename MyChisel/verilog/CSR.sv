@@ -107,21 +107,21 @@ module CSR(
       end
       else
         mtvec_reg <= csr_write_val;
-      if (io_is_ebreak) begin
+      if (io_is_ebreak | io_ecall)
         mepc_reg <= io_current_pc;
+      else if (~io_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | ~_GEN_3) begin
+      end
+      else
+        mepc_reg <= csr_write_val;
+      if (io_is_ebreak) begin
         mcause_reg <= 32'h3;
         mtval_reg <= io_current_pc;
       end
       else if (io_ecall) begin
-        mepc_reg <= io_current_pc + 32'h4;
         mcause_reg <= 32'hB;
         mtval_reg <= 32'h0;
       end
       else begin
-        if (~io_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | ~_GEN_3) begin
-        end
-        else
-          mepc_reg <= csr_write_val;
         if (~io_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | _GEN_3 | ~_GEN_4) begin
         end
         else

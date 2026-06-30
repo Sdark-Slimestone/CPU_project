@@ -67,6 +67,52 @@ static uint32_t io_debug_lsu_wdata_before = 0;
 // Capstone 反汇编句柄
 static csh capstone_handle = 0;
 
+// 前向声明
+static void disassemble_instruction(uint32_t pc, uint32_t inst, char *buffer, size_t buf_size);
+
+// ========== 周期历史缓冲区（环形队列） ==========
+#define HIST_SIZE 20
+typedef struct {
+    unsigned long long cyc;
+    uint32_t pc;
+    uint32_t inst;
+    uint32_t regs[16];
+    char disasm[64];
+} CycleHist;
+static CycleHist history[HIST_SIZE];
+static int hist_idx = 0;
+static int hist_count = 0;
+
+static void record_cycle_history() {
+    CycleHist *h = &history[hist_idx % HIST_SIZE];
+    h->cyc = cycle;
+    h->pc = pc_before;
+    h->inst = inst_before;
+    for (int i = 0; i < 16; i++) {
+        h->regs[i] = (&top->io_debug_regs_0)[i];
+    }
+    disassemble_instruction(pc_before, inst_before, h->disasm, sizeof(h->disasm));
+    hist_idx++;
+    hist_count++;
+}
+
+static void dump_history() {
+    printf("\n===== CYCLE HISTORY (last %d cycles) =====\n", HIST_SIZE);
+    int start = hist_count > HIST_SIZE ? hist_count - HIST_SIZE : 0;
+    for (int i = start; i < hist_count; i++) {
+        CycleHist *h = &history[i % HIST_SIZE];
+        printf("--- Cycle %llu ---\n", h->cyc);
+        printf("PC=0x%08x INST=0x%08x %s\n", h->pc, h->inst, h->disasm);
+        printf("REGS: ");
+        for (int r = 0; r < 16; r++) {
+            printf("x%d=0x%08x ", r, h->regs[r]);
+            if (r == 7) printf("\n      ");
+        }
+        printf("\n");
+    }
+    printf("===== END HISTORY =====\n\n");
+}
+
 // 获取系统运行微秒数（用于 RTC）
 static uint64_t get_uptime_us() {
     auto now = std::chrono::steady_clock::now();
@@ -103,7 +149,7 @@ unsigned int pmem_read(unsigned int addr) {
 
 // DPI-C 可调用函数：内存写
 void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
-    if (addr == 0x10000000) {  // 串口输出
+    if (addr == 0xa00003f8) {  // 串口输出
         if (mask & 0x1) {
             putchar((char)(data & 0xFF));
             fflush(stdout);
@@ -220,6 +266,9 @@ static int exec_one_cycle() {
 
 
 
+    // 记录周期历史（执行前状态）
+    record_cycle_history();
+
     top->clock = 0; top->eval();
     top->clock = 1; top->eval();
     cycle++;
@@ -241,16 +290,15 @@ static int exec_one_cycle() {
         top->io_debug_regs_14, top->io_debug_regs_15
     };
 
+    int diff_found = 0;
     for (int i = 0; i < 16; i++) {
         if (npc_regs[i] != nemu_state[i]) {
             printf("\n[DIFFTEST] Register mismatch at cycle %llu\n", cycle);
             printf("Reg[%d]: NPC = 0x%08x, NEMU = 0x%08x\n", i, npc_regs[i], nemu_state[i]);
-            print_debug_info();
+            diff_found = 1;
         }
     }
     
-    //============================状态对比======================
-
     // ---------------- 对比本周期写入过的内存地址 ----------------
     for (int i = 0; i < written_count; i++) {
         uint32_t addr = written_addrs[i];
@@ -259,17 +307,23 @@ static int exec_one_cycle() {
             uint8_t npc_val = mem[off];
             uint8_t nemu_val = 0;
             difftest_memcpy(addr, &nemu_val, 1, DIFFTEST_TO_DUT);
-            printf("[MTRACE] cycle=%llu addr=0x%08x NPC=0x%02x NEMU=0x%02x %s\n",
-                   cycle, addr, npc_val, nemu_val,
-                   (npc_val == nemu_val) ? "OK" : "MISMATCH");
             if (npc_val != nemu_val) {
                 printf("\n[MEM MISMATCH] cycle %llu, addr 0x%08x, NPC 0x%02x, NEMU 0x%02x\n",
                        cycle, addr, npc_val, nemu_val);
-                print_debug_info();
+                diff_found = 1;
             }
         }
     }
     written_count = 0;   // 清空记录，准备下一周期
+
+    if (diff_found) {
+        print_debug_info();
+        dump_history();
+        printf("[DIFFTEST] Stopping on mismatch at cycle %llu\n", cycle);
+        simulation_finished = 1;
+        good_trap = 0;
+        return 1;
+    }
 
     
 

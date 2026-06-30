@@ -116,57 +116,10 @@ class top extends Module {
   idu.io.idu_to_exu1 <> exu1.io.idu_to_exu1
 
   // ===================== IDU → EXU2 =====================
-  exu2.io.idu_to_exu1.dec1_op.is_lui    := idu.io.idu_to_exu2.dec2_op.is_lui
-  exu2.io.idu_to_exu1.dec1_op.is_auipc  := idu.io.idu_to_exu2.dec2_op.is_auipc
-  exu2.io.idu_to_exu1.dec1_op.is_jal    := idu.io.idu_to_exu2.dec2_op.is_jal
-  exu2.io.idu_to_exu1.dec1_op.is_jalr   := idu.io.idu_to_exu2.dec2_op.is_jalr
-  exu2.io.idu_to_exu1.dec1_op.is_beq    := idu.io.idu_to_exu2.dec2_op.is_beq
-  exu2.io.idu_to_exu1.dec1_op.is_bne    := idu.io.idu_to_exu2.dec2_op.is_bne
-  exu2.io.idu_to_exu1.dec1_op.is_blt    := idu.io.idu_to_exu2.dec2_op.is_blt
-  exu2.io.idu_to_exu1.dec1_op.is_bge    := idu.io.idu_to_exu2.dec2_op.is_bge
-  exu2.io.idu_to_exu1.dec1_op.is_bltu   := idu.io.idu_to_exu2.dec2_op.is_bltu
-  exu2.io.idu_to_exu1.dec1_op.is_bgeu   := idu.io.idu_to_exu2.dec2_op.is_bgeu
-  exu2.io.idu_to_exu1.dec1_op.is_lb     := idu.io.idu_to_exu2.dec2_op.is_lb
-  exu2.io.idu_to_exu1.dec1_op.is_lh     := idu.io.idu_to_exu2.dec2_op.is_lh
-  exu2.io.idu_to_exu1.dec1_op.is_lw     := idu.io.idu_to_exu2.dec2_op.is_lw
-  exu2.io.idu_to_exu1.dec1_op.is_lbu    := idu.io.idu_to_exu2.dec2_op.is_lbu
-  exu2.io.idu_to_exu1.dec1_op.is_lhu    := idu.io.idu_to_exu2.dec2_op.is_lhu
-  exu2.io.idu_to_exu1.dec1_op.is_sb     := idu.io.idu_to_exu2.dec2_op.is_sb
-  exu2.io.idu_to_exu1.dec1_op.is_sh     := idu.io.idu_to_exu2.dec2_op.is_sh
-  exu2.io.idu_to_exu1.dec1_op.is_sw     := idu.io.idu_to_exu2.dec2_op.is_sw
-  exu2.io.idu_to_exu1.dec1_op.is_addi   := idu.io.idu_to_exu2.dec2_op.is_addi
-  exu2.io.idu_to_exu1.dec1_op.is_slti   := idu.io.idu_to_exu2.dec2_op.is_slti
-  exu2.io.idu_to_exu1.dec1_op.is_sltiu  := idu.io.idu_to_exu2.dec2_op.is_sltiu
-  exu2.io.idu_to_exu1.dec1_op.is_xori   := idu.io.idu_to_exu2.dec2_op.is_xori
-  exu2.io.idu_to_exu1.dec1_op.is_ori    := idu.io.idu_to_exu2.dec2_op.is_ori
-  exu2.io.idu_to_exu1.dec1_op.is_andi   := idu.io.idu_to_exu2.dec2_op.is_andi
-  exu2.io.idu_to_exu1.dec1_op.is_slli   := idu.io.idu_to_exu2.dec2_op.is_slli
-  exu2.io.idu_to_exu1.dec1_op.is_srli   := idu.io.idu_to_exu2.dec2_op.is_srli
-  exu2.io.idu_to_exu1.dec1_op.is_srai   := idu.io.idu_to_exu2.dec2_op.is_srai
-  exu2.io.idu_to_exu1.dec1_op.is_add    := idu.io.idu_to_exu2.dec2_op.is_add
-  exu2.io.idu_to_exu1.dec1_op.is_sub    := idu.io.idu_to_exu2.dec2_op.is_sub
-  exu2.io.idu_to_exu1.dec1_op.is_sll    := idu.io.idu_to_exu2.dec2_op.is_sll
-  exu2.io.idu_to_exu1.dec1_op.is_slt    := idu.io.idu_to_exu2.dec2_op.is_slt
-  exu2.io.idu_to_exu1.dec1_op.is_sltu   := idu.io.idu_to_exu2.dec2_op.is_sltu
-  exu2.io.idu_to_exu1.dec1_op.is_xor    := idu.io.idu_to_exu2.dec2_op.is_xor
-  exu2.io.idu_to_exu1.dec1_op.is_srl    := idu.io.idu_to_exu2.dec2_op.is_srl
-  exu2.io.idu_to_exu1.dec1_op.is_sra    := idu.io.idu_to_exu2.dec2_op.is_sra
-  exu2.io.idu_to_exu1.dec1_op.is_or     := idu.io.idu_to_exu2.dec2_op.is_or
-  exu2.io.idu_to_exu1.dec1_op.is_and    := idu.io.idu_to_exu2.dec2_op.is_and
-  exu2.io.idu_to_exu1.dec1_op.is_ebreak := idu.io.idu_to_exu2.dec2_op.is_ebreak
-  exu2.io.idu_to_exu1.dec1_op.is_csrrw  := idu.io.idu_to_exu2.dec2_op.is_csrrw
-  exu2.io.idu_to_exu1.dec1_op.is_csrrs  := idu.io.idu_to_exu2.dec2_op.is_csrrs
-  exu2.io.idu_to_exu1.dec1_op.is_csrrc  := idu.io.idu_to_exu2.dec2_op.is_csrrc
-  exu2.io.idu_to_exu1.dec1_op.is_csrrwi := idu.io.idu_to_exu2.dec2_op.is_csrrwi
-  exu2.io.idu_to_exu1.dec1_op.is_csrrsi := idu.io.idu_to_exu2.dec2_op.is_csrrsi
-  exu2.io.idu_to_exu1.dec1_op.is_csrrci := idu.io.idu_to_exu2.dec2_op.is_csrrci
-  exu2.io.idu_to_exu1.dec1_op.is_ecall  := idu.io.idu_to_exu2.dec2_op.is_ecall
-  exu2.io.idu_to_exu1.dec1_op.is_mret   := idu.io.idu_to_exu2.dec2_op.is_mret
+  exu2.io.idu_to_exu1.dec1_op  := idu.io.idu_to_exu2.dec2_op
   exu2.io.idu_to_exu1.dec1_imm := idu.io.idu_to_exu2.dec2_imm
-  exu2.io.idu_to_exu1.dec1_val.rs1_val := idu.io.idu_to_exu2.dec2_val.rs1_val
-  exu2.io.idu_to_exu1.dec1_val.rs2_val := idu.io.idu_to_exu2.dec2_val.rs2_val
-  exu2.io.idu_to_exu1.dec1_val.nextpc  := idu.io.idu_to_exu2.dec2_val.nextpc
-  exu2.io.idu_to_exu1.dec1_rd          := idu.io.idu_to_exu2.dec2_rd
+  exu2.io.idu_to_exu1.dec1_val := idu.io.idu_to_exu2.dec2_val
+  exu2.io.idu_to_exu1.dec1_rd  := idu.io.idu_to_exu2.dec2_rd
 
   // ===================== EXU1/2 → LSU1/2 =====================
   exu1.io.exu_to_lsu <> lsu1.io.exu_to_lsu
@@ -194,8 +147,7 @@ class top extends Module {
   dmem.io.ebreak := lsu1.io.ebreak_out || lsu2.io.ebreak_out
 
   // ===================== WBU → GRF =====================
-  grf.io.wbu_to_grf.wr1 <> wbu.io.wbu_to_grf.wr1
-  grf.io.wbu_to_grf.wr2 <> wbu.io.wbu_to_grf.wr2
+  wbu.io.wbu_to_grf <> grf.io.wbu_to_grf
 
   // ===================== IFU CSR 接口 =====================
   ifu.io.csr_to_ifu.take_trap := csr.io.take_trap

@@ -181,6 +181,9 @@ module idu(
   wire        _dec1_io_is_lw;
   wire        _dec1_io_is_lbu;
   wire        _dec1_io_is_lhu;
+  wire        _dec1_io_is_sb;
+  wire        _dec1_io_is_sh;
+  wire        _dec1_io_is_sw;
   wire        _dec1_io_is_csrrw;
   wire        _dec1_io_is_csrrs;
   wire        _dec1_io_is_csrrc;
@@ -191,17 +194,28 @@ module idu(
   wire        _dec1_io_is_mret;
   wire        _dec1_io_is_ebreak;
   wire [4:0]  _dec1_io_rd;
+  wire [31:0] _dec1_io_imm;
   wire        isControl1 =
     _dec1_io_is_jal | _dec1_io_is_jalr | _dec1_io_is_beq | _dec1_io_is_bne
     | _dec1_io_is_blt | _dec1_io_is_bge | _dec1_io_is_bltu | _dec1_io_is_bgeu
     | _dec1_io_is_ebreak | _dec1_io_is_csrrw | _dec1_io_is_csrrs | _dec1_io_is_csrrc
     | _dec1_io_is_csrrwi | _dec1_io_is_csrrsi | _dec1_io_is_csrrci | _dec1_io_is_ecall
     | _dec1_io_is_mret;
+  wire        isStore1 = _dec1_io_is_sb | _dec1_io_is_sh | _dec1_io_is_sw;
+  wire        isLoad2 =
+    _dec2_io_is_lb | _dec2_io_is_lbu | _dec2_io_is_lh | _dec2_io_is_lhu | _dec2_io_is_lw;
   wire        final_stall =
-    isControl1
-    | (_dec1_io_is_lb | _dec1_io_is_lh | _dec1_io_is_lw | _dec1_io_is_lbu
-       | _dec1_io_is_lhu) & (|_dec1_io_rd)
-    & (_dec1_io_rd == _dec2_io_rs1 | _dec1_io_rd == _dec2_io_rs2) | ~isControl1
+    (|_dec1_io_rd) & (_dec1_io_rd == _dec2_io_rs1 | _dec1_io_rd == _dec2_io_rs2)
+    | isControl1 | isStore1 & isLoad2
+    & io_grf_to_idu_dec1_value_inst1rs1_value == io_grf_to_idu_dec2_value_inst2rs1_value
+    & _dec1_io_imm == _dec2_io_imm | isStore1
+    & (_dec2_io_is_sb | _dec2_io_is_sh | _dec2_io_is_sw)
+    | (_dec1_io_is_lb | _dec1_io_is_lbu | _dec1_io_is_lh | _dec1_io_is_lhu
+       | _dec1_io_is_lw) & isLoad2
+    & (_dec1_io_imm[0]
+       ^ io_grf_to_idu_dec1_value_inst1rs1_value[0]) == (_dec2_io_imm[0]
+                                                         ^ io_grf_to_idu_dec2_value_inst2rs1_value[0])
+    | ~isControl1
     & (_dec2_io_is_jal | _dec2_io_is_jalr | _dec2_io_is_beq | _dec2_io_is_bne
        | _dec2_io_is_blt | _dec2_io_is_bge | _dec2_io_is_bltu | _dec2_io_is_bgeu
        | _dec2_io_is_ebreak | _dec2_io_is_csrrw | _dec2_io_is_csrrs | _dec2_io_is_csrrc
@@ -224,9 +238,9 @@ module idu(
     .io_is_lw      (_dec1_io_is_lw),
     .io_is_lbu     (_dec1_io_is_lbu),
     .io_is_lhu     (_dec1_io_is_lhu),
-    .io_is_sb      (io_idu_to_exu1_dec1_op_is_sb),
-    .io_is_sh      (io_idu_to_exu1_dec1_op_is_sh),
-    .io_is_sw      (io_idu_to_exu1_dec1_op_is_sw),
+    .io_is_sb      (_dec1_io_is_sb),
+    .io_is_sh      (_dec1_io_is_sh),
+    .io_is_sw      (_dec1_io_is_sw),
     .io_is_addi    (io_idu_to_exu1_dec1_op_is_addi),
     .io_is_slti    (io_idu_to_exu1_dec1_op_is_slti),
     .io_is_sltiu   (io_idu_to_exu1_dec1_op_is_sltiu),
@@ -258,7 +272,7 @@ module idu(
     .io_rd         (_dec1_io_rd),
     .io_rs1        (io_idu_to_grf_dec1_redreg_rs1),
     .io_rs2        (io_idu_to_grf_dec1_redreg_rs2),
-    .io_imm        (io_idu_to_exu1_dec1_imm),
+    .io_imm        (_dec1_io_imm),
     .io_debug_inst (io_idu_debug_debug_inst1)
   );
   decoder dec2 (
@@ -330,7 +344,11 @@ module idu(
   assign io_idu_to_exu1_dec1_op_is_lw = _dec1_io_is_lw;
   assign io_idu_to_exu1_dec1_op_is_lbu = _dec1_io_is_lbu;
   assign io_idu_to_exu1_dec1_op_is_lhu = _dec1_io_is_lhu;
+  assign io_idu_to_exu1_dec1_op_is_sb = _dec1_io_is_sb;
+  assign io_idu_to_exu1_dec1_op_is_sh = _dec1_io_is_sh;
+  assign io_idu_to_exu1_dec1_op_is_sw = _dec1_io_is_sw;
   assign io_idu_to_exu1_dec1_op_is_ebreak = _dec1_io_is_ebreak;
+  assign io_idu_to_exu1_dec1_imm = _dec1_io_imm;
   assign io_idu_to_exu1_dec1_val_rs1_val = io_grf_to_idu_dec1_value_inst1rs1_value;
   assign io_idu_to_exu1_dec1_val_rs2_val = io_grf_to_idu_dec1_value_inst1rs2_value;
   assign io_idu_to_exu1_dec1_val_nextpc = io_ifu_to_idu_inst1_nextpc;

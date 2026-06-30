@@ -59,8 +59,6 @@ class InstructionDecoder extends Module {
   val opcode = io.inst(6, 0)
   val funct3 = io.inst(14, 12)
   val funct7 = io.inst(31, 25)
-  val rs1    = io.inst(19, 15)
-  val rd     = io.inst(11, 7)
 
   val OPCODE_LUI    = "b0110111".U(7.W)
   val OPCODE_AUIPC  = "b0010111".U(7.W)
@@ -129,18 +127,18 @@ class InstructionDecoder extends Module {
 
   // ecall: funct3=0, imm=0, rs1=0, rd=0
   io.is_ecall := is_system && (funct3 === 0.U) &&
-                  (io.inst(31, 20) === 0.U) && (rs1 === 0.U) &&
-                  (rd === 0.U) && (funct7 === 0.U)
+                  (io.inst(31, 20) === 0.U) && (io.inst(19, 15) === 0.U) &&
+                  (io.inst(11, 7) === 0.U) && (funct7 === 0.U)
 
   // ebreak: funct3=0, imm=1, rs1=0, rd=0
   io.is_ebreak := is_system && (funct3 === 0.U) &&
-                  (io.inst(31, 20) === 1.U) && (rs1 === 0.U) &&
-                  (rd === 0.U) && (funct7 === 0.U)
+                  (io.inst(31, 20) === 1.U) && (io.inst(19, 15) === 0.U) &&
+                  (io.inst(11, 7) === 0.U) && (funct7 === 0.U)
 
   // mret: funct3=0, imm=0x302, rs1=0, rd=0
   io.is_mret := is_system && (funct3 === 0.U) &&
-                (io.inst(31, 20) === "b0011000000".U(12.W)) && (rs1 === 0.U) &&
-                (rd === 0.U) && (funct7 === 0.U)
+                (io.inst(31, 20) === "b0011000000".U(12.W)) && (io.inst(19, 15) === 0.U) &&
+                (io.inst(11, 7) === 0.U) && (funct7 === 0.U)
 }
 
 // 信息解码模块：提取 rd、rs1、rs2，并根据指令类型输出唯一的立即数（含CSR）
@@ -328,7 +326,6 @@ class decoder extends Module {
 
   val infoDecoder = Module(new InformationDecoder)
   infoDecoder.io.inst     := io.inst
-  // 连接所有指令类型信号
   infoDecoder.io.is_lui   := instDecoder.io.is_lui
   infoDecoder.io.is_auipc := instDecoder.io.is_auipc
   infoDecoder.io.is_jal   := instDecoder.io.is_jal
@@ -373,7 +370,6 @@ class decoder extends Module {
   infoDecoder.io.is_csrrsi := instDecoder.io.is_csrrsi
   infoDecoder.io.is_csrrci := instDecoder.io.is_csrrci
 
-  // 输出指令识别信号
   io.is_lui   := instDecoder.io.is_lui
   io.is_auipc := instDecoder.io.is_auipc
   io.is_jal   := instDecoder.io.is_jal
@@ -421,14 +417,11 @@ class decoder extends Module {
   io.is_mret   := instDecoder.io.is_mret
   io.is_ebreak := instDecoder.io.is_ebreak
 
-  // 寄存器地址
   io.rd  := infoDecoder.io.rd
   io.rs1 := infoDecoder.io.rs1
   io.rs2 := infoDecoder.io.rs2
 
-  // 合并后的立即数
   io.imm := infoDecoder.io.imm
 
-  // 调试输出
   io.debug_inst := io.inst
 }

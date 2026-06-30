@@ -3,7 +3,7 @@ package R1322IAeCSR
 import chisel3._
 import chisel3.util._
 
-// 通用寄存器堆，支持双发射读和双端口写
+// 通用寄存器堆，支持双发射读和双端口写，额外CSR写端口
 class GRF extends Module {
   val io = IO(new Bundle {
     val idu_to_grf = new Bundle {
@@ -28,7 +28,6 @@ class GRF extends Module {
       }
     }
 
-    // WBU 两个写端口
     val wbu_to_grf = new Bundle {
       val wr1 = new Bundle {
         val addr = Input(UInt(5.W))
@@ -72,7 +71,7 @@ class GRF extends Module {
     Mux((io.idu_to_grf.dec2_redreg.rs2 =/= 0.U) && (io.idu_to_grf.dec2_redreg.rs2(4) === 0.U),
         regs(io.idu_to_grf.dec2_redreg.rs2(3,0)), 0.U(32.W))
 
-  // 写逻辑（三个写源：WBU的wr1/wr2 + CSR写回，优先级 CSR > WBU）
+  // 写逻辑（三个写源：WBU的wr1/wr2 + CSR写回，优先级 CSR > WBU > WBU）
   val nextRegs = Wire(Vec(16, UInt(32.W)))
   for (i <- 0 until 16) {
     val csr_wr = (io.csr_to_grf.waddr =/= 0.U) &&
