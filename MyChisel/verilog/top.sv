@@ -178,11 +178,22 @@ module top(
   wire        _idu_io_idu_to_exu1_dec1_op_is_or;
   wire        _idu_io_idu_to_exu1_dec1_op_is_and;
   wire        _idu_io_idu_to_exu1_dec1_op_is_ebreak;
+  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrw;
+  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrs;
+  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrc;
+  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrwi;
+  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrsi;
+  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrci;
+  wire        _idu_io_idu_to_exu1_dec1_op_is_ecall;
+  wire        _idu_io_idu_to_exu1_dec1_op_is_mret;
   wire [31:0] _idu_io_idu_to_exu1_dec1_imm;
   wire [31:0] _idu_io_idu_to_exu1_dec1_val_rs1_val;
   wire [31:0] _idu_io_idu_to_exu1_dec1_val_rs2_val;
   wire [31:0] _idu_io_idu_to_exu1_dec1_val_nextpc;
   wire [4:0]  _idu_io_idu_to_exu1_dec1_rd;
+  wire        _idu_io_idu_to_exu1_is_stall;
+  wire [31:0] _idu_io_idu_to_exu1_inst1_pc;
+  wire [31:0] _idu_io_idu_to_exu1_inst1;
   wire        _idu_io_idu_to_exu2_dec2_op_is_lui;
   wire        _idu_io_idu_to_exu2_dec2_op_is_auipc;
   wire        _idu_io_idu_to_exu2_dec2_op_is_jal;
@@ -221,24 +232,20 @@ module top(
   wire        _idu_io_idu_to_exu2_dec2_op_is_or;
   wire        _idu_io_idu_to_exu2_dec2_op_is_and;
   wire        _idu_io_idu_to_exu2_dec2_op_is_ebreak;
+  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrw;
+  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrs;
+  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrc;
+  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrwi;
+  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrsi;
+  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrci;
+  wire        _idu_io_idu_to_exu2_dec2_op_is_ecall;
+  wire        _idu_io_idu_to_exu2_dec2_op_is_mret;
   wire [31:0] _idu_io_idu_to_exu2_dec2_imm;
   wire [31:0] _idu_io_idu_to_exu2_dec2_val_rs1_val;
   wire [31:0] _idu_io_idu_to_exu2_dec2_val_rs2_val;
   wire [31:0] _idu_io_idu_to_exu2_dec2_val_nextpc;
   wire [4:0]  _idu_io_idu_to_exu2_dec2_rd;
   wire        _idu_io_idu_to_ifu_is_stall;
-  wire        _idu_io_idu_to_top_is_csrrw;
-  wire        _idu_io_idu_to_top_is_csrrs;
-  wire        _idu_io_idu_to_top_is_csrrc;
-  wire        _idu_io_idu_to_top_is_csrrwi;
-  wire        _idu_io_idu_to_top_is_csrrsi;
-  wire        _idu_io_idu_to_top_is_csrrci;
-  wire        _idu_io_idu_to_top_is_ecall;
-  wire        _idu_io_idu_to_top_is_mret;
-  wire        _idu_io_idu_to_top_is_ebreak;
-  wire [31:0] _idu_io_idu_to_top_inst1_pc;
-  wire [31:0] _idu_io_idu_to_top_inst1;
-  wire [31:0] _idu_io_idu_to_top_rs1_val;
   wire [31:0] _ifu_io_ifu_to_imem_addr1;
   wire [31:0] _ifu_io_ifu_to_imem_addr2;
   wire [31:0] _ifu_io_ifu_to_idu_inst1;
@@ -328,11 +335,22 @@ module top(
     .io_idu_to_exu1_dec1_op_is_or            (_idu_io_idu_to_exu1_dec1_op_is_or),
     .io_idu_to_exu1_dec1_op_is_and           (_idu_io_idu_to_exu1_dec1_op_is_and),
     .io_idu_to_exu1_dec1_op_is_ebreak        (_idu_io_idu_to_exu1_dec1_op_is_ebreak),
+    .io_idu_to_exu1_dec1_op_is_csrrw         (_idu_io_idu_to_exu1_dec1_op_is_csrrw),
+    .io_idu_to_exu1_dec1_op_is_csrrs         (_idu_io_idu_to_exu1_dec1_op_is_csrrs),
+    .io_idu_to_exu1_dec1_op_is_csrrc         (_idu_io_idu_to_exu1_dec1_op_is_csrrc),
+    .io_idu_to_exu1_dec1_op_is_csrrwi        (_idu_io_idu_to_exu1_dec1_op_is_csrrwi),
+    .io_idu_to_exu1_dec1_op_is_csrrsi        (_idu_io_idu_to_exu1_dec1_op_is_csrrsi),
+    .io_idu_to_exu1_dec1_op_is_csrrci        (_idu_io_idu_to_exu1_dec1_op_is_csrrci),
+    .io_idu_to_exu1_dec1_op_is_ecall         (_idu_io_idu_to_exu1_dec1_op_is_ecall),
+    .io_idu_to_exu1_dec1_op_is_mret          (_idu_io_idu_to_exu1_dec1_op_is_mret),
     .io_idu_to_exu1_dec1_imm                 (_idu_io_idu_to_exu1_dec1_imm),
     .io_idu_to_exu1_dec1_val_rs1_val         (_idu_io_idu_to_exu1_dec1_val_rs1_val),
     .io_idu_to_exu1_dec1_val_rs2_val         (_idu_io_idu_to_exu1_dec1_val_rs2_val),
     .io_idu_to_exu1_dec1_val_nextpc          (_idu_io_idu_to_exu1_dec1_val_nextpc),
     .io_idu_to_exu1_dec1_rd                  (_idu_io_idu_to_exu1_dec1_rd),
+    .io_idu_to_exu1_is_stall                 (_idu_io_idu_to_exu1_is_stall),
+    .io_idu_to_exu1_inst1_pc                 (_idu_io_idu_to_exu1_inst1_pc),
+    .io_idu_to_exu1_inst1                    (_idu_io_idu_to_exu1_inst1),
     .io_idu_to_exu2_dec2_op_is_lui           (_idu_io_idu_to_exu2_dec2_op_is_lui),
     .io_idu_to_exu2_dec2_op_is_auipc         (_idu_io_idu_to_exu2_dec2_op_is_auipc),
     .io_idu_to_exu2_dec2_op_is_jal           (_idu_io_idu_to_exu2_dec2_op_is_jal),
@@ -371,24 +389,20 @@ module top(
     .io_idu_to_exu2_dec2_op_is_or            (_idu_io_idu_to_exu2_dec2_op_is_or),
     .io_idu_to_exu2_dec2_op_is_and           (_idu_io_idu_to_exu2_dec2_op_is_and),
     .io_idu_to_exu2_dec2_op_is_ebreak        (_idu_io_idu_to_exu2_dec2_op_is_ebreak),
+    .io_idu_to_exu2_dec2_op_is_csrrw         (_idu_io_idu_to_exu2_dec2_op_is_csrrw),
+    .io_idu_to_exu2_dec2_op_is_csrrs         (_idu_io_idu_to_exu2_dec2_op_is_csrrs),
+    .io_idu_to_exu2_dec2_op_is_csrrc         (_idu_io_idu_to_exu2_dec2_op_is_csrrc),
+    .io_idu_to_exu2_dec2_op_is_csrrwi        (_idu_io_idu_to_exu2_dec2_op_is_csrrwi),
+    .io_idu_to_exu2_dec2_op_is_csrrsi        (_idu_io_idu_to_exu2_dec2_op_is_csrrsi),
+    .io_idu_to_exu2_dec2_op_is_csrrci        (_idu_io_idu_to_exu2_dec2_op_is_csrrci),
+    .io_idu_to_exu2_dec2_op_is_ecall         (_idu_io_idu_to_exu2_dec2_op_is_ecall),
+    .io_idu_to_exu2_dec2_op_is_mret          (_idu_io_idu_to_exu2_dec2_op_is_mret),
     .io_idu_to_exu2_dec2_imm                 (_idu_io_idu_to_exu2_dec2_imm),
     .io_idu_to_exu2_dec2_val_rs1_val         (_idu_io_idu_to_exu2_dec2_val_rs1_val),
     .io_idu_to_exu2_dec2_val_rs2_val         (_idu_io_idu_to_exu2_dec2_val_rs2_val),
     .io_idu_to_exu2_dec2_val_nextpc          (_idu_io_idu_to_exu2_dec2_val_nextpc),
     .io_idu_to_exu2_dec2_rd                  (_idu_io_idu_to_exu2_dec2_rd),
     .io_idu_to_ifu_is_stall                  (_idu_io_idu_to_ifu_is_stall),
-    .io_idu_to_top_is_csrrw                  (_idu_io_idu_to_top_is_csrrw),
-    .io_idu_to_top_is_csrrs                  (_idu_io_idu_to_top_is_csrrs),
-    .io_idu_to_top_is_csrrc                  (_idu_io_idu_to_top_is_csrrc),
-    .io_idu_to_top_is_csrrwi                 (_idu_io_idu_to_top_is_csrrwi),
-    .io_idu_to_top_is_csrrsi                 (_idu_io_idu_to_top_is_csrrsi),
-    .io_idu_to_top_is_csrrci                 (_idu_io_idu_to_top_is_csrrci),
-    .io_idu_to_top_is_ecall                  (_idu_io_idu_to_top_is_ecall),
-    .io_idu_to_top_is_mret                   (_idu_io_idu_to_top_is_mret),
-    .io_idu_to_top_is_ebreak                 (_idu_io_idu_to_top_is_ebreak),
-    .io_idu_to_top_inst1_pc                  (_idu_io_idu_to_top_inst1_pc),
-    .io_idu_to_top_inst1                     (_idu_io_idu_to_top_inst1),
-    .io_idu_to_top_rs1_val                   (_idu_io_idu_to_top_rs1_val),
     .io_idu_debug_debug_inst1                (io_debug_inst1),
     .io_idu_debug_debug_inst2                (io_debug_inst2),
     .io_idu_debug_is_stall                   (io_debug_stall)
@@ -465,6 +479,22 @@ module top(
       (_idu_io_idu_to_exu1_dec1_op_is_and),
     .io_idu_to_exu1_dec1_op_is_ebreak
       (_idu_io_idu_to_exu1_dec1_op_is_ebreak),
+    .io_idu_to_exu1_dec1_op_is_csrrw
+      (_idu_io_idu_to_exu1_dec1_op_is_csrrw),
+    .io_idu_to_exu1_dec1_op_is_csrrs
+      (_idu_io_idu_to_exu1_dec1_op_is_csrrs),
+    .io_idu_to_exu1_dec1_op_is_csrrc
+      (_idu_io_idu_to_exu1_dec1_op_is_csrrc),
+    .io_idu_to_exu1_dec1_op_is_csrrwi
+      (_idu_io_idu_to_exu1_dec1_op_is_csrrwi),
+    .io_idu_to_exu1_dec1_op_is_csrrsi
+      (_idu_io_idu_to_exu1_dec1_op_is_csrrsi),
+    .io_idu_to_exu1_dec1_op_is_csrrci
+      (_idu_io_idu_to_exu1_dec1_op_is_csrrci),
+    .io_idu_to_exu1_dec1_op_is_ecall
+      (_idu_io_idu_to_exu1_dec1_op_is_ecall),
+    .io_idu_to_exu1_dec1_op_is_mret
+      (_idu_io_idu_to_exu1_dec1_op_is_mret),
     .io_idu_to_exu1_dec1_imm                          (_idu_io_idu_to_exu1_dec1_imm),
     .io_idu_to_exu1_dec1_val_rs1_val
       (_idu_io_idu_to_exu1_dec1_val_rs1_val),
@@ -473,19 +503,9 @@ module top(
     .io_idu_to_exu1_dec1_val_nextpc
       (_idu_io_idu_to_exu1_dec1_val_nextpc),
     .io_idu_to_exu1_dec1_rd                           (_idu_io_idu_to_exu1_dec1_rd),
-    .io_idu_csr_is_csrrw                              (_idu_io_idu_to_top_is_csrrw),
-    .io_idu_csr_is_csrrs                              (_idu_io_idu_to_top_is_csrrs),
-    .io_idu_csr_is_csrrc                              (_idu_io_idu_to_top_is_csrrc),
-    .io_idu_csr_is_csrrwi                             (_idu_io_idu_to_top_is_csrrwi),
-    .io_idu_csr_is_csrrsi                             (_idu_io_idu_to_top_is_csrrsi),
-    .io_idu_csr_is_csrrci                             (_idu_io_idu_to_top_is_csrrci),
-    .io_idu_csr_is_ecall                              (_idu_io_idu_to_top_is_ecall),
-    .io_idu_csr_is_mret                               (_idu_io_idu_to_top_is_mret),
-    .io_idu_csr_is_ebreak                             (_idu_io_idu_to_top_is_ebreak),
-    .io_idu_csr_inst1_pc                              (_idu_io_idu_to_top_inst1_pc),
-    .io_idu_csr_inst1                                 (_idu_io_idu_to_top_inst1),
-    .io_idu_csr_rs1_val                               (_idu_io_idu_to_top_rs1_val),
-    .io_is_stall                                      (_idu_io_idu_to_ifu_is_stall),
+    .io_idu_to_exu1_is_stall                          (_idu_io_idu_to_exu1_is_stall),
+    .io_idu_to_exu1_inst1_pc                          (_idu_io_idu_to_exu1_inst1_pc),
+    .io_idu_to_exu1_inst1                             (_idu_io_idu_to_exu1_inst1),
     .io_exu_to_lsu_op_is_lb                           (_exu1_io_exu_to_lsu_op_is_lb),
     .io_exu_to_lsu_op_is_lh                           (_exu1_io_exu_to_lsu_op_is_lh),
     .io_exu_to_lsu_op_is_lw                           (_exu1_io_exu_to_lsu_op_is_lw),
@@ -597,6 +617,22 @@ module top(
       (_idu_io_idu_to_exu2_dec2_op_is_and),
     .io_idu_to_exu1_dec1_op_is_ebreak
       (_idu_io_idu_to_exu2_dec2_op_is_ebreak),
+    .io_idu_to_exu1_dec1_op_is_csrrw
+      (_idu_io_idu_to_exu2_dec2_op_is_csrrw),
+    .io_idu_to_exu1_dec1_op_is_csrrs
+      (_idu_io_idu_to_exu2_dec2_op_is_csrrs),
+    .io_idu_to_exu1_dec1_op_is_csrrc
+      (_idu_io_idu_to_exu2_dec2_op_is_csrrc),
+    .io_idu_to_exu1_dec1_op_is_csrrwi
+      (_idu_io_idu_to_exu2_dec2_op_is_csrrwi),
+    .io_idu_to_exu1_dec1_op_is_csrrsi
+      (_idu_io_idu_to_exu2_dec2_op_is_csrrsi),
+    .io_idu_to_exu1_dec1_op_is_csrrci
+      (_idu_io_idu_to_exu2_dec2_op_is_csrrci),
+    .io_idu_to_exu1_dec1_op_is_ecall
+      (_idu_io_idu_to_exu2_dec2_op_is_ecall),
+    .io_idu_to_exu1_dec1_op_is_mret
+      (_idu_io_idu_to_exu2_dec2_op_is_mret),
     .io_idu_to_exu1_dec1_imm                          (_idu_io_idu_to_exu2_dec2_imm),
     .io_idu_to_exu1_dec1_val_rs1_val
       (_idu_io_idu_to_exu2_dec2_val_rs1_val),
@@ -605,19 +641,9 @@ module top(
     .io_idu_to_exu1_dec1_val_nextpc
       (_idu_io_idu_to_exu2_dec2_val_nextpc),
     .io_idu_to_exu1_dec1_rd                           (_idu_io_idu_to_exu2_dec2_rd),
-    .io_idu_csr_is_csrrw                              (1'h0),
-    .io_idu_csr_is_csrrs                              (1'h0),
-    .io_idu_csr_is_csrrc                              (1'h0),
-    .io_idu_csr_is_csrrwi                             (1'h0),
-    .io_idu_csr_is_csrrsi                             (1'h0),
-    .io_idu_csr_is_csrrci                             (1'h0),
-    .io_idu_csr_is_ecall                              (1'h0),
-    .io_idu_csr_is_mret                               (1'h0),
-    .io_idu_csr_is_ebreak                             (1'h0),
-    .io_idu_csr_inst1_pc                              (32'h0),
-    .io_idu_csr_inst1                                 (32'h0),
-    .io_idu_csr_rs1_val                               (32'h0),
-    .io_is_stall                                      (1'h0),
+    .io_idu_to_exu1_is_stall                          (1'h0),
+    .io_idu_to_exu1_inst1_pc                          (32'h0),
+    .io_idu_to_exu1_inst1                             (32'h0),
     .io_exu_to_lsu_op_is_lb                           (_exu2_io_exu_to_lsu_op_is_lb),
     .io_exu_to_lsu_op_is_lh                           (_exu2_io_exu_to_lsu_op_is_lh),
     .io_exu_to_lsu_op_is_lw                           (_exu2_io_exu_to_lsu_op_is_lw),

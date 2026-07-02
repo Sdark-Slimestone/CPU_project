@@ -128,37 +128,9 @@ class top extends Module {
   exu2.io.idu_to_exu1.dec1_imm := idu.io.idu_to_exu2.dec2_imm
   exu2.io.idu_to_exu1.dec1_val := idu.io.idu_to_exu2.dec2_val
   exu2.io.idu_to_exu1.dec1_rd  := idu.io.idu_to_exu2.dec2_rd
-
-  // ===================== EXU CSR 输入（来自 IDU+IDU） =====================
-  // EXU1 接收第一条指令的 CSR 直通信号
-  exu1.io.idu_csr.is_csrrw  := idu.io.idu_to_top.is_csrrw
-  exu1.io.idu_csr.is_csrrs  := idu.io.idu_to_top.is_csrrs
-  exu1.io.idu_csr.is_csrrc  := idu.io.idu_to_top.is_csrrc
-  exu1.io.idu_csr.is_csrrwi := idu.io.idu_to_top.is_csrrwi
-  exu1.io.idu_csr.is_csrrsi := idu.io.idu_to_top.is_csrrsi
-  exu1.io.idu_csr.is_csrrci := idu.io.idu_to_top.is_csrrci
-  exu1.io.idu_csr.is_ecall  := idu.io.idu_to_top.is_ecall
-  exu1.io.idu_csr.is_mret   := idu.io.idu_to_top.is_mret
-  exu1.io.idu_csr.is_ebreak := idu.io.idu_to_top.is_ebreak
-  exu1.io.idu_csr.inst1_pc  := idu.io.idu_to_top.inst1_pc
-  exu1.io.idu_csr.inst1     := idu.io.idu_to_top.inst1
-  exu1.io.idu_csr.rs1_val   := idu.io.idu_to_top.rs1_val
-  exu1.io.is_stall          := idu.io.idu_to_ifu.is_stall
-
-  // EXU2 的 CSR 输入清零（CSR 只在第一条指令有效）
-  exu2.io.idu_csr.is_csrrw  := false.B
-  exu2.io.idu_csr.is_csrrs  := false.B
-  exu2.io.idu_csr.is_csrrc  := false.B
-  exu2.io.idu_csr.is_csrrwi := false.B
-  exu2.io.idu_csr.is_csrrsi := false.B
-  exu2.io.idu_csr.is_csrrci := false.B
-  exu2.io.idu_csr.is_ecall  := false.B
-  exu2.io.idu_csr.is_mret   := false.B
-  exu2.io.idu_csr.is_ebreak := false.B
-  exu2.io.idu_csr.inst1_pc  := 0.U
-  exu2.io.idu_csr.inst1     := 0.U
-  exu2.io.idu_csr.rs1_val   := 0.U
-  exu2.io.is_stall          := false.B
+  exu2.io.idu_to_exu1.is_stall := false.B
+  exu2.io.idu_to_exu1.inst1_pc := 0.U
+  exu2.io.idu_to_exu1.inst1    := 0.U
 
   // ===================== IFU CSR 接口 =====================
   ifu.io.csr_to_ifu.take_trap := exu1.io.csr_to_ifu.take_trap

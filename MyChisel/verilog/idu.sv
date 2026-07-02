@@ -51,11 +51,22 @@ module idu(
                 io_idu_to_exu1_dec1_op_is_or,
                 io_idu_to_exu1_dec1_op_is_and,
                 io_idu_to_exu1_dec1_op_is_ebreak,
+                io_idu_to_exu1_dec1_op_is_csrrw,
+                io_idu_to_exu1_dec1_op_is_csrrs,
+                io_idu_to_exu1_dec1_op_is_csrrc,
+                io_idu_to_exu1_dec1_op_is_csrrwi,
+                io_idu_to_exu1_dec1_op_is_csrrsi,
+                io_idu_to_exu1_dec1_op_is_csrrci,
+                io_idu_to_exu1_dec1_op_is_ecall,
+                io_idu_to_exu1_dec1_op_is_mret,
   output [31:0] io_idu_to_exu1_dec1_imm,
                 io_idu_to_exu1_dec1_val_rs1_val,
                 io_idu_to_exu1_dec1_val_rs2_val,
                 io_idu_to_exu1_dec1_val_nextpc,
   output [4:0]  io_idu_to_exu1_dec1_rd,
+  output        io_idu_to_exu1_is_stall,
+  output [31:0] io_idu_to_exu1_inst1_pc,
+                io_idu_to_exu1_inst1,
   output        io_idu_to_exu2_dec2_op_is_lui,
                 io_idu_to_exu2_dec2_op_is_auipc,
                 io_idu_to_exu2_dec2_op_is_jal,
@@ -94,25 +105,21 @@ module idu(
                 io_idu_to_exu2_dec2_op_is_or,
                 io_idu_to_exu2_dec2_op_is_and,
                 io_idu_to_exu2_dec2_op_is_ebreak,
+                io_idu_to_exu2_dec2_op_is_csrrw,
+                io_idu_to_exu2_dec2_op_is_csrrs,
+                io_idu_to_exu2_dec2_op_is_csrrc,
+                io_idu_to_exu2_dec2_op_is_csrrwi,
+                io_idu_to_exu2_dec2_op_is_csrrsi,
+                io_idu_to_exu2_dec2_op_is_csrrci,
+                io_idu_to_exu2_dec2_op_is_ecall,
+                io_idu_to_exu2_dec2_op_is_mret,
   output [31:0] io_idu_to_exu2_dec2_imm,
                 io_idu_to_exu2_dec2_val_rs1_val,
                 io_idu_to_exu2_dec2_val_rs2_val,
                 io_idu_to_exu2_dec2_val_nextpc,
   output [4:0]  io_idu_to_exu2_dec2_rd,
   output        io_idu_to_ifu_is_stall,
-                io_idu_to_top_is_csrrw,
-                io_idu_to_top_is_csrrs,
-                io_idu_to_top_is_csrrc,
-                io_idu_to_top_is_csrrwi,
-                io_idu_to_top_is_csrrsi,
-                io_idu_to_top_is_csrrci,
-                io_idu_to_top_is_ecall,
-                io_idu_to_top_is_mret,
-                io_idu_to_top_is_ebreak,
-  output [31:0] io_idu_to_top_inst1_pc,
-                io_idu_to_top_inst1,
-                io_idu_to_top_rs1_val,
-                io_idu_debug_debug_inst1,
+  output [31:0] io_idu_debug_debug_inst1,
                 io_idu_debug_debug_inst2,
   output        io_idu_debug_is_stall
 );
@@ -348,11 +355,22 @@ module idu(
   assign io_idu_to_exu1_dec1_op_is_sh = _dec1_io_is_sh;
   assign io_idu_to_exu1_dec1_op_is_sw = _dec1_io_is_sw;
   assign io_idu_to_exu1_dec1_op_is_ebreak = _dec1_io_is_ebreak;
+  assign io_idu_to_exu1_dec1_op_is_csrrw = _dec1_io_is_csrrw;
+  assign io_idu_to_exu1_dec1_op_is_csrrs = _dec1_io_is_csrrs;
+  assign io_idu_to_exu1_dec1_op_is_csrrc = _dec1_io_is_csrrc;
+  assign io_idu_to_exu1_dec1_op_is_csrrwi = _dec1_io_is_csrrwi;
+  assign io_idu_to_exu1_dec1_op_is_csrrsi = _dec1_io_is_csrrsi;
+  assign io_idu_to_exu1_dec1_op_is_csrrci = _dec1_io_is_csrrci;
+  assign io_idu_to_exu1_dec1_op_is_ecall = _dec1_io_is_ecall;
+  assign io_idu_to_exu1_dec1_op_is_mret = _dec1_io_is_mret;
   assign io_idu_to_exu1_dec1_imm = _dec1_io_imm;
   assign io_idu_to_exu1_dec1_val_rs1_val = io_grf_to_idu_dec1_value_inst1rs1_value;
   assign io_idu_to_exu1_dec1_val_rs2_val = io_grf_to_idu_dec1_value_inst1rs2_value;
   assign io_idu_to_exu1_dec1_val_nextpc = io_ifu_to_idu_inst1_nextpc;
   assign io_idu_to_exu1_dec1_rd = _dec1_io_rd;
+  assign io_idu_to_exu1_is_stall = final_stall;
+  assign io_idu_to_exu1_inst1_pc = io_ifu_to_idu_inst1_pc;
+  assign io_idu_to_exu1_inst1 = io_ifu_to_idu_inst1;
   assign io_idu_to_exu2_dec2_op_is_lui = ~final_stall & _dec2_io_is_lui;
   assign io_idu_to_exu2_dec2_op_is_auipc = ~final_stall & _dec2_io_is_auipc;
   assign io_idu_to_exu2_dec2_op_is_jal = ~final_stall & _dec2_io_is_jal;
@@ -391,6 +409,14 @@ module idu(
   assign io_idu_to_exu2_dec2_op_is_or = ~final_stall & _dec2_io_is_or;
   assign io_idu_to_exu2_dec2_op_is_and = ~final_stall & _dec2_io_is_and;
   assign io_idu_to_exu2_dec2_op_is_ebreak = ~final_stall & _dec2_io_is_ebreak;
+  assign io_idu_to_exu2_dec2_op_is_csrrw = ~final_stall & _dec2_io_is_csrrw;
+  assign io_idu_to_exu2_dec2_op_is_csrrs = ~final_stall & _dec2_io_is_csrrs;
+  assign io_idu_to_exu2_dec2_op_is_csrrc = ~final_stall & _dec2_io_is_csrrc;
+  assign io_idu_to_exu2_dec2_op_is_csrrwi = ~final_stall & _dec2_io_is_csrrwi;
+  assign io_idu_to_exu2_dec2_op_is_csrrsi = ~final_stall & _dec2_io_is_csrrsi;
+  assign io_idu_to_exu2_dec2_op_is_csrrci = ~final_stall & _dec2_io_is_csrrci;
+  assign io_idu_to_exu2_dec2_op_is_ecall = ~final_stall & _dec2_io_is_ecall;
+  assign io_idu_to_exu2_dec2_op_is_mret = ~final_stall & _dec2_io_is_mret;
   assign io_idu_to_exu2_dec2_imm = final_stall ? 32'h0 : _dec2_io_imm;
   assign io_idu_to_exu2_dec2_val_rs1_val =
     final_stall ? 32'h0 : io_grf_to_idu_dec2_value_inst2rs1_value;
@@ -400,18 +426,6 @@ module idu(
     final_stall ? 32'h0 : io_ifu_to_idu_inst2_nextpc;
   assign io_idu_to_exu2_dec2_rd = final_stall ? 5'h0 : _dec2_io_rd;
   assign io_idu_to_ifu_is_stall = final_stall;
-  assign io_idu_to_top_is_csrrw = _dec1_io_is_csrrw;
-  assign io_idu_to_top_is_csrrs = _dec1_io_is_csrrs;
-  assign io_idu_to_top_is_csrrc = _dec1_io_is_csrrc;
-  assign io_idu_to_top_is_csrrwi = _dec1_io_is_csrrwi;
-  assign io_idu_to_top_is_csrrsi = _dec1_io_is_csrrsi;
-  assign io_idu_to_top_is_csrrci = _dec1_io_is_csrrci;
-  assign io_idu_to_top_is_ecall = _dec1_io_is_ecall;
-  assign io_idu_to_top_is_mret = _dec1_io_is_mret;
-  assign io_idu_to_top_is_ebreak = _dec1_io_is_ebreak;
-  assign io_idu_to_top_inst1_pc = io_ifu_to_idu_inst1_pc;
-  assign io_idu_to_top_inst1 = io_ifu_to_idu_inst1;
-  assign io_idu_to_top_rs1_val = io_grf_to_idu_dec1_value_inst1rs1_value;
   assign io_idu_debug_debug_inst2 = final_stall ? 32'h0 : _dec2_io_debug_inst;
   assign io_idu_debug_is_stall = final_stall;
 endmodule

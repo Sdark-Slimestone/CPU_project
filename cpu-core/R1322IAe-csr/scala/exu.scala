@@ -61,26 +61,12 @@ class EXU extends Module {
         val rs2_val = Input(UInt(32.W))
         val nextpc  = Input(UInt(32.W))
       }
-      val dec1_rd = Input(UInt(5.W))
-    }
-
-    // CSR 直通信号（来自 IDU）
-    val idu_csr = new Bundle {
-      val is_csrrw  = Input(Bool())
-      val is_csrrs  = Input(Bool())
-      val is_csrrc  = Input(Bool())
-      val is_csrrwi = Input(Bool())
-      val is_csrrsi = Input(Bool())
-      val is_csrrci = Input(Bool())
-      val is_ecall  = Input(Bool())
-      val is_mret   = Input(Bool())
-      val is_ebreak = Input(Bool())
+      val dec1_rd   = Input(UInt(5.W))
+      val is_stall  = Input(Bool())
       val inst1_pc  = Input(UInt(32.W))
       val inst1     = Input(UInt(32.W))
-      val rs1_val   = Input(UInt(32.W))
     }
 
-    val is_stall = Input(Bool())
 
     val exu_to_lsu = new Bundle {
       val op = new Bundle {
@@ -153,52 +139,52 @@ class EXU extends Module {
   // ============== CSR 实例化与控制逻辑 ==============
   val csr = Module(new CSR)
 
-  val csr_addr = io.idu_csr.inst1(31, 20)
+  val csr_addr = io.idu_to_exu1.inst1(31, 20)
   csr.io.exu_to_csr.addr := csr_addr
 
-  val is_csr_write = io.idu_csr.is_csrrw || io.idu_csr.is_csrrs ||
-                     io.idu_csr.is_csrrc || io.idu_csr.is_csrrwi ||
-                     io.idu_csr.is_csrrsi || io.idu_csr.is_csrrci
+  val is_csr_write = io.idu_to_exu1.dec1_op.is_csrrw || io.idu_to_exu1.dec1_op.is_csrrs ||
+                     io.idu_to_exu1.dec1_op.is_csrrc || io.idu_to_exu1.dec1_op.is_csrrwi ||
+                     io.idu_to_exu1.dec1_op.is_csrrsi || io.idu_to_exu1.dec1_op.is_csrrci
 
   csr.io.exu_to_csr.op := MuxCase(0.U(3.W), Seq(
-    (io.idu_csr.is_csrrs || io.idu_csr.is_csrrsi) -> 1.U,
-    (io.idu_csr.is_csrrc || io.idu_csr.is_csrrci) -> 2.U
+    (io.idu_to_exu1.dec1_op.is_csrrs || io.idu_to_exu1.dec1_op.is_csrrsi) -> 1.U,
+    (io.idu_to_exu1.dec1_op.is_csrrc || io.idu_to_exu1.dec1_op.is_csrrci) -> 2.U
   ))
 
-  val use_imm_csr = io.idu_csr.is_csrrwi || io.idu_csr.is_csrrsi || io.idu_csr.is_csrrci
-  val uimm = io.idu_csr.inst1(19, 15)
-  val rs1_csr_nonzero = io.idu_csr.inst1(19, 15) =/= 0.U
+  val use_imm_csr = io.idu_to_exu1.dec1_op.is_csrrwi || io.idu_to_exu1.dec1_op.is_csrrsi || io.idu_to_exu1.dec1_op.is_csrrci
+  val uimm = io.idu_to_exu1.inst1(19, 15)
+  val rs1_csr_nonzero = io.idu_to_exu1.inst1(19, 15) =/= 0.U
   val uimm_nonzero = uimm =/= 0.U
 
   csr.io.exu_to_csr.use_imm := use_imm_csr
-  csr.io.exu_to_csr.rs1_val := io.idu_csr.rs1_val
+  csr.io.exu_to_csr.rs1_val := io.idu_to_exu1.dec1_val.rs1_val
 
-  val csrrw_or_wi = io.idu_csr.is_csrrw || io.idu_csr.is_csrrwi
+  val csrrw_or_wi = io.idu_to_exu1.dec1_op.is_csrrw || io.idu_to_exu1.dec1_op.is_csrrwi
   val csr_write_cond = Mux(csrrw_or_wi, true.B,
                        Mux(use_imm_csr, uimm_nonzero, rs1_csr_nonzero))
   csr.io.exu_to_csr.wen := is_csr_write && csr_write_cond
   csr.io.exu_to_csr.waddr := csr_addr
-  csr.io.exu_to_csr.wdata := Mux(use_imm_csr, Cat(0.U(27.W), uimm), io.idu_csr.rs1_val)
+  csr.io.exu_to_csr.wdata := Mux(use_imm_csr, Cat(0.U(27.W), uimm), io.idu_to_exu1.dec1_val.rs1_val)
 
-  csr.io.exu_to_csr.ecall      := io.idu_csr.is_ecall
-  csr.io.exu_to_csr.mret       := io.idu_csr.is_mret
-  csr.io.exu_to_csr.is_ebreak  := io.idu_csr.is_ebreak
-  csr.io.exu_to_csr.current_pc := io.idu_csr.inst1_pc
+  csr.io.exu_to_csr.ecall      := io.idu_to_exu1.dec1_op.is_ecall
+  csr.io.exu_to_csr.mret       := io.idu_to_exu1.dec1_op.is_mret
+  csr.io.exu_to_csr.is_ebreak  := io.idu_to_exu1.dec1_op.is_ebreak
+  csr.io.exu_to_csr.current_pc := io.idu_to_exu1.inst1_pc
 
-  val inst_ok = !io.idu_csr.is_ebreak && !io.idu_csr.is_ecall
-  csr.io.exu_to_csr.inst_retire := Mux(inst_ok, Mux(io.is_stall, 1.U(2.W), 2.U(2.W)), 0.U(2.W))
+  val inst_ok = !io.idu_to_exu1.dec1_op.is_ebreak && !io.idu_to_exu1.dec1_op.is_ecall
+  csr.io.exu_to_csr.inst_retire := Mux(inst_ok, Mux(io.idu_to_exu1.is_stall, 1.U(2.W), 2.U(2.W)), 0.U(2.W))
 
   // CSR → IFU
   io.csr_to_ifu.take_trap := csr.io.csr_to_exu.take_trap
   io.csr_to_ifu.trap_pc   := csr.io.csr_to_exu.trap_pc
-  io.csr_to_ifu.take_mret := io.idu_csr.is_mret
+  io.csr_to_ifu.take_mret := io.idu_to_exu1.dec1_op.is_mret
   io.csr_to_ifu.mret_pc   := csr.io.csr_to_exu.debug_mepc
 
   // CSR 写回 → GRF
-  val is_csr = io.idu_csr.is_csrrw || io.idu_csr.is_csrrs ||
-               io.idu_csr.is_csrrc || io.idu_csr.is_csrrwi ||
-               io.idu_csr.is_csrrsi || io.idu_csr.is_csrrci
-  val csr_rd = io.idu_csr.inst1(11, 7)
+  val is_csr = io.idu_to_exu1.dec1_op.is_csrrw || io.idu_to_exu1.dec1_op.is_csrrs ||
+               io.idu_to_exu1.dec1_op.is_csrrc || io.idu_to_exu1.dec1_op.is_csrrwi ||
+               io.idu_to_exu1.dec1_op.is_csrrsi || io.idu_to_exu1.dec1_op.is_csrrci
+  val csr_rd = io.idu_to_exu1.inst1(11, 7)
   io.csr_to_grf.wen   := is_csr && (csr_rd =/= 0.U)
   io.csr_to_grf.waddr := csr_rd
   io.csr_to_grf.wdata := csr.io.csr_to_exu.rdata

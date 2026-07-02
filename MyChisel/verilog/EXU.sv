@@ -40,24 +40,22 @@ module EXU(
                 io_idu_to_exu1_dec1_op_is_or,
                 io_idu_to_exu1_dec1_op_is_and,
                 io_idu_to_exu1_dec1_op_is_ebreak,
+                io_idu_to_exu1_dec1_op_is_csrrw,
+                io_idu_to_exu1_dec1_op_is_csrrs,
+                io_idu_to_exu1_dec1_op_is_csrrc,
+                io_idu_to_exu1_dec1_op_is_csrrwi,
+                io_idu_to_exu1_dec1_op_is_csrrsi,
+                io_idu_to_exu1_dec1_op_is_csrrci,
+                io_idu_to_exu1_dec1_op_is_ecall,
+                io_idu_to_exu1_dec1_op_is_mret,
   input  [31:0] io_idu_to_exu1_dec1_imm,
                 io_idu_to_exu1_dec1_val_rs1_val,
                 io_idu_to_exu1_dec1_val_rs2_val,
                 io_idu_to_exu1_dec1_val_nextpc,
   input  [4:0]  io_idu_to_exu1_dec1_rd,
-  input         io_idu_csr_is_csrrw,
-                io_idu_csr_is_csrrs,
-                io_idu_csr_is_csrrc,
-                io_idu_csr_is_csrrwi,
-                io_idu_csr_is_csrrsi,
-                io_idu_csr_is_csrrci,
-                io_idu_csr_is_ecall,
-                io_idu_csr_is_mret,
-                io_idu_csr_is_ebreak,
-  input  [31:0] io_idu_csr_inst1_pc,
-                io_idu_csr_inst1,
-                io_idu_csr_rs1_val,
-  input         io_is_stall,
+  input         io_idu_to_exu1_is_stall,
+  input  [31:0] io_idu_to_exu1_inst1_pc,
+                io_idu_to_exu1_inst1,
   output        io_exu_to_lsu_op_is_lb,
                 io_exu_to_lsu_op_is_lh,
                 io_exu_to_lsu_op_is_lw,
@@ -96,9 +94,11 @@ module EXU(
 );
 
   wire [31:0] _csr_io_csr_to_exu_debug_mepc;
-  wire        _is_csr_T = io_idu_csr_is_csrrw | io_idu_csr_is_csrrs;
+  wire        _is_csr_T =
+    io_idu_to_exu1_dec1_op_is_csrrw | io_idu_to_exu1_dec1_op_is_csrrs;
   wire        use_imm_csr =
-    io_idu_csr_is_csrrwi | io_idu_csr_is_csrrsi | io_idu_csr_is_csrrci;
+    io_idu_to_exu1_dec1_op_is_csrrwi | io_idu_to_exu1_dec1_op_is_csrrsi
+    | io_idu_to_exu1_dec1_op_is_csrrci;
   wire [31:0] _pc_T = io_idu_to_exu1_dec1_val_nextpc - 32'h4;
   wire [4:0]  shamt =
     io_idu_to_exu1_dec1_op_is_slli | io_idu_to_exu1_dec1_op_is_srli
@@ -173,24 +173,30 @@ module EXU(
   CSR csr (
     .clock                        (clock),
     .reset                        (reset),
-    .io_exu_to_csr_addr           (io_idu_csr_inst1[31:20]),
+    .io_exu_to_csr_addr           (io_idu_to_exu1_inst1[31:20]),
     .io_exu_to_csr_wen
-      ((_is_csr_T | io_idu_csr_is_csrrc | io_idu_csr_is_csrrwi | io_idu_csr_is_csrrsi
-        | io_idu_csr_is_csrrci)
-       & (io_idu_csr_is_csrrw | io_idu_csr_is_csrrwi
-          | (use_imm_csr ? (|(io_idu_csr_inst1[19:15])) : (|(io_idu_csr_inst1[19:15]))))),
-    .io_exu_to_csr_waddr          (io_idu_csr_inst1[31:20]),
+      ((_is_csr_T | io_idu_to_exu1_dec1_op_is_csrrc | io_idu_to_exu1_dec1_op_is_csrrwi
+        | io_idu_to_exu1_dec1_op_is_csrrsi | io_idu_to_exu1_dec1_op_is_csrrci)
+       & (io_idu_to_exu1_dec1_op_is_csrrw | io_idu_to_exu1_dec1_op_is_csrrwi
+          | (use_imm_csr
+               ? (|(io_idu_to_exu1_inst1[19:15]))
+               : (|(io_idu_to_exu1_inst1[19:15]))))),
+    .io_exu_to_csr_waddr          (io_idu_to_exu1_inst1[31:20]),
     .io_exu_to_csr_op
-      (io_idu_csr_is_csrrs | io_idu_csr_is_csrrsi
+      (io_idu_to_exu1_dec1_op_is_csrrs | io_idu_to_exu1_dec1_op_is_csrrsi
          ? 3'h1
-         : {1'h0, io_idu_csr_is_csrrc | io_idu_csr_is_csrrci, 1'h0}),
-    .io_exu_to_csr_rs1_val        (io_idu_csr_rs1_val),
+         : {1'h0,
+            io_idu_to_exu1_dec1_op_is_csrrc | io_idu_to_exu1_dec1_op_is_csrrci,
+            1'h0}),
+    .io_exu_to_csr_rs1_val        (io_idu_to_exu1_dec1_val_rs1_val),
     .io_exu_to_csr_use_imm        (use_imm_csr),
-    .io_exu_to_csr_ecall          (io_idu_csr_is_ecall),
-    .io_exu_to_csr_is_ebreak      (io_idu_csr_is_ebreak),
-    .io_exu_to_csr_current_pc     (io_idu_csr_inst1_pc),
+    .io_exu_to_csr_ecall          (io_idu_to_exu1_dec1_op_is_ecall),
+    .io_exu_to_csr_is_ebreak      (io_idu_to_exu1_dec1_op_is_ebreak),
+    .io_exu_to_csr_current_pc     (io_idu_to_exu1_inst1_pc),
     .io_exu_to_csr_inst_retire
-      (io_idu_csr_is_ebreak | io_idu_csr_is_ecall ? 2'h0 : io_is_stall ? 2'h1 : 2'h2),
+      (io_idu_to_exu1_dec1_op_is_ebreak | io_idu_to_exu1_dec1_op_is_ecall
+         ? 2'h0
+         : io_idu_to_exu1_is_stall ? 2'h1 : 2'h2),
     .io_csr_to_exu_rdata          (io_csr_to_grf_wdata),
     .io_csr_to_exu_take_trap      (io_csr_to_ifu_take_trap),
     .io_csr_to_exu_trap_pc        (io_csr_to_ifu_trap_pc),
@@ -251,12 +257,13 @@ module EXU(
       : io_idu_to_exu1_dec1_op_is_jalr
           ? {_mem_addr_T[31:1], 1'h0}
           : is_branch ? _target_branch_T : 32'h0;
-  assign io_csr_to_ifu_take_mret = io_idu_csr_is_mret;
+  assign io_csr_to_ifu_take_mret = io_idu_to_exu1_dec1_op_is_mret;
   assign io_csr_to_ifu_mret_pc = _csr_io_csr_to_exu_debug_mepc;
   assign io_csr_to_grf_wen =
-    (_is_csr_T | io_idu_csr_is_csrrc | io_idu_csr_is_csrrwi | io_idu_csr_is_csrrsi
-     | io_idu_csr_is_csrrci) & (|(io_idu_csr_inst1[11:7]));
-  assign io_csr_to_grf_waddr = io_idu_csr_inst1[11:7];
+    (_is_csr_T | io_idu_to_exu1_dec1_op_is_csrrc | io_idu_to_exu1_dec1_op_is_csrrwi
+     | io_idu_to_exu1_dec1_op_is_csrrsi | io_idu_to_exu1_dec1_op_is_csrrci)
+    & (|(io_idu_to_exu1_inst1[11:7]));
+  assign io_csr_to_grf_waddr = io_idu_to_exu1_inst1[11:7];
   assign io_debug_csr_mepc = _csr_io_csr_to_exu_debug_mepc;
   assign io_debug_alu_out = alu_out;
   assign io_debug_alu_source1 =

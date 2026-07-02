@@ -97,7 +97,11 @@ class idu extends Module {
         val rs2_val = Output(UInt(32.W))
         val nextpc  = Output(UInt(32.W))
       }
-      val dec1_rd = Output(UInt(5.W))
+      val dec1_rd   = Output(UInt(5.W))
+      // CSR 顶传信号
+      val is_stall  = Output(Bool())
+      val inst1_pc  = Output(UInt(32.W))
+      val inst1     = Output(UInt(32.W))
     }
 
     // 第二条指令 -> EXU2
@@ -164,22 +168,6 @@ class idu extends Module {
     // 发往 IFU 的 stall 信号
     val idu_to_ifu = new Bundle {
       val is_stall = Output(Bool())
-    }
-
-    // CSR 相关信号直通到 top
-    val idu_to_top = new Bundle {
-      val is_csrrw  = Output(Bool())
-      val is_csrrs  = Output(Bool())
-      val is_csrrc  = Output(Bool())
-      val is_csrrwi = Output(Bool())
-      val is_csrrsi = Output(Bool())
-      val is_csrrci = Output(Bool())
-      val is_ecall  = Output(Bool())
-      val is_mret   = Output(Bool())
-      val is_ebreak = Output(Bool())
-      val inst1_pc  = Output(UInt(32.W))
-      val inst1     = Output(UInt(32.W))
-      val rs1_val   = Output(UInt(32.W))
     }
 
     // 调试端口
@@ -365,19 +353,10 @@ class idu extends Module {
   io.idu_to_exu2.dec2_val.rs2_val := Mux(final_stall, 0.U(32.W), io.grf_to_idu.dec2_value.inst2rs2_value)
   io.idu_to_exu2.dec2_val.nextpc  := Mux(final_stall, 0.U(32.W), io.ifu_to_idu.inst2_nextpc)
 
-  // ---------- CSR 直通到 top ----------
-  io.idu_to_top.is_csrrw  := dec1.io.is_csrrw
-  io.idu_to_top.is_csrrs  := dec1.io.is_csrrs
-  io.idu_to_top.is_csrrc  := dec1.io.is_csrrc
-  io.idu_to_top.is_csrrwi := dec1.io.is_csrrwi
-  io.idu_to_top.is_csrrsi := dec1.io.is_csrrsi
-  io.idu_to_top.is_csrrci := dec1.io.is_csrrci
-  io.idu_to_top.is_ecall  := dec1.io.is_ecall
-  io.idu_to_top.is_mret   := dec1.io.is_mret
-  io.idu_to_top.is_ebreak := dec1.io.is_ebreak
-  io.idu_to_top.inst1_pc  := io.ifu_to_idu.inst1_pc
-  io.idu_to_top.inst1     := io.ifu_to_idu.inst1
-  io.idu_to_top.rs1_val   := io.grf_to_idu.dec1_value.inst1rs1_value
+  // ---------- CSR 顶传信号（放入 idu_to_exu1） ----------
+  io.idu_to_exu1.is_stall := io.idu_to_ifu.is_stall
+  io.idu_to_exu1.inst1_pc := io.ifu_to_idu.inst1_pc
+  io.idu_to_exu1.inst1    := io.ifu_to_idu.inst1
 
   // ---------- 调试输出 ----------
   io.idu_debug.debug_inst1 := dec1.io.debug_inst
