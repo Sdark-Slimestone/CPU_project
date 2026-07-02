@@ -58,8 +58,17 @@ module top(
   output [63:0] io_debug_mcycle,
                 io_debug_minstret,
   output [31:0] io_debug_mstatus,
+                io_debug_mie,
+                io_debug_mtvec,
+                io_debug_mepc,
                 io_debug_mcause,
-                io_debug_mepc
+                io_debug_mtval,
+                io_debug_mip,
+                io_debug_mscratch,
+                io_debug_mvendorid,
+                io_debug_marchid,
+                io_debug_mimpid,
+                io_debug_mhartid
 );
 
   wire [31:0] _dmem_io_dmem_to_lsu_1_load_data;
@@ -741,12 +750,19 @@ module top(
     .io_current_pc     (_idu_io_idu_to_top_inst1_pc),
     .io_take_trap      (_csr_io_take_trap),
     .io_trap_pc        (_csr_io_trap_pc),
-    .io_inst_retire    (~_idu_io_idu_to_top_is_ebreak & ~_idu_io_idu_to_top_is_ecall),
+    .io_inst_retire
+      (_idu_io_idu_to_top_is_ebreak | _idu_io_idu_to_top_is_ecall
+         ? 2'h0
+         : _idu_io_idu_to_ifu_is_stall ? 2'h1 : 2'h2),
     .io_debug_mcycle   (io_debug_mcycle),
     .io_debug_minstret (io_debug_minstret),
     .io_debug_mstatus  (io_debug_mstatus),
+    .io_debug_mie      (io_debug_mie),
+    .io_debug_mtvec    (io_debug_mtvec),
+    .io_debug_mepc     (_csr_io_debug_mepc),
     .io_debug_mcause   (io_debug_mcause),
-    .io_debug_mepc     (_csr_io_debug_mepc)
+    .io_debug_mtval    (io_debug_mtval),
+    .io_debug_mip      (io_debug_mip)
   );
   imem imem (
     .clock                (clock),
@@ -772,5 +788,10 @@ module top(
     .io_ebreak                   (_lsu1_io_ebreak_out | _lsu2_io_ebreak_out)
   );
   assign io_debug_mepc = _csr_io_debug_mepc;
+  assign io_debug_mscratch = 32'h0;
+  assign io_debug_mvendorid = 32'h79737978;
+  assign io_debug_marchid = 32'h18A9E3B;
+  assign io_debug_mimpid = 32'h0;
+  assign io_debug_mhartid = 32'h0;
 endmodule
 

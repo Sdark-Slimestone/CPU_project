@@ -14,12 +14,16 @@ module CSR(
   input  [31:0] io_current_pc,
   output        io_take_trap,
   output [31:0] io_trap_pc,
-  input         io_inst_retire,
+  input  [1:0]  io_inst_retire,
   output [63:0] io_debug_mcycle,
                 io_debug_minstret,
   output [31:0] io_debug_mstatus,
+                io_debug_mie,
+                io_debug_mtvec,
+                io_debug_mepc,
                 io_debug_mcause,
-                io_debug_mepc
+                io_debug_mtval,
+                io_debug_mip
 );
 
   reg  [63:0] mcycle_reg;
@@ -99,8 +103,7 @@ module CSR(
       _GEN_4 = io_csr_waddr == 12'h342;
       _GEN_5 = io_csr_waddr == 12'h343;
       mcycle_reg <= mcycle_reg + 64'h1;
-      if (io_inst_retire)
-        minstret_reg <= minstret_reg + 64'h1;
+      minstret_reg <= minstret_reg + {62'h0, io_inst_retire};
       if (io_csr_wen & _GEN)
         mstatus_reg <= csr_write_val;
       if (~io_csr_wen | _GEN | _GEN_0 | ~_GEN_1) begin
@@ -118,7 +121,7 @@ module CSR(
         mtval_reg <= io_current_pc;
       end
       else if (io_ecall) begin
-        mcause_reg <= 32'hB;
+        mcause_reg <= 32'h8;
         mtval_reg <= 32'h0;
       end
       else begin
@@ -149,7 +152,11 @@ module CSR(
   assign io_debug_mcycle = mcycle_reg;
   assign io_debug_minstret = minstret_reg;
   assign io_debug_mstatus = mstatus_reg;
-  assign io_debug_mcause = mcause_reg;
+  assign io_debug_mie = mie_reg;
+  assign io_debug_mtvec = mtvec_reg;
   assign io_debug_mepc = mepc_reg;
+  assign io_debug_mcause = mcause_reg;
+  assign io_debug_mtval = mtval_reg;
+  assign io_debug_mip = mip_reg;
 endmodule
 

@@ -135,10 +135,10 @@ class InstructionDecoder extends Module {
                   (io.inst(31, 20) === 1.U) && (io.inst(19, 15) === 0.U) &&
                   (io.inst(11, 7) === 0.U) && (funct7 === 0.U)
 
-  // mret: funct3=0, imm=0x302, rs1=0, rd=0
+  // mret: funct3=0, imm=0x302, rs1=0, rd=0 (funct7=0x18, don't check)
   io.is_mret := is_system && (funct3 === 0.U) &&
-                (io.inst(31, 20) === "b0011000000".U(12.W)) && (io.inst(19, 15) === 0.U) &&
-                (io.inst(11, 7) === 0.U) && (funct7 === 0.U)
+                (io.inst(31, 20) === 0x302.U(12.W)) && (io.inst(19, 15) === 0.U) &&
+                (io.inst(11, 7) === 0.U)
 }
 
 // 信息解码模块：提取 rd、rs1、rs2，并根据指令类型输出唯一的立即数（含CSR）

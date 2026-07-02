@@ -9,7 +9,6 @@
 #include <stdint.h> 
 #include <assert.h>
 #include <capstone/capstone.h>   // 新增 Capstone 反汇编库
-#include "/home/sdark/ysyx-workbench/nemu/include/difftest-def.h"
 
 #define panic(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while(0)
 typedef uint32_t word_t;
@@ -26,17 +25,8 @@ static uint32_t written_addrs[MAX_WRITES];
 static int written_count = 0;
 
 
-// 声明 difftest 接口
-extern "C" {
-    void difftest_init();
-    void difftest_memcpy(unsigned int addr, void *buf, size_t n, int direction);
-    void difftest_regcpy(void *dut, int direction);
-    void difftest_exec(unsigned long long n);
-}
 
 
-#define DIFFTEST_TO_REF   1   // NPC -> NEMU
-#define DIFFTEST_TO_DUT   0   // NEMU -> NPC
 
 // 仿真启动时刻
 static auto boot_time = std::chrono::steady_clock::now();
@@ -47,9 +37,12 @@ static Vtop *top = nullptr;
 // 当前执行的时钟周期计数
 static unsigned long long cycle = 0;
 
-// 保存执行前的 PC 和指令（用于输出反汇编和监视点触发时的正确地址）
+// 保存执行前的状态（双发射）
 static uint32_t pc_before = 0;
 static uint32_t inst_before = 0;
+static uint32_t pc2_before = 0;
+static uint32_t inst2_before = 0;
+static uint32_t stall_before = 0;
 static uint32_t lw_before = 0;
 static uint32_t lbu_before = 0;
 static uint32_t add_before = 0;
@@ -66,52 +59,6 @@ static uint32_t io_debug_lsu_wdata_before = 0;
 
 // Capstone 反汇编句柄
 static csh capstone_handle = 0;
-
-// 前向声明
-static void disassemble_instruction(uint32_t pc, uint32_t inst, char *buffer, size_t buf_size);
-
-// ========== 周期历史缓冲区（环形队列） ==========
-#define HIST_SIZE 20
-typedef struct {
-    unsigned long long cyc;
-    uint32_t pc;
-    uint32_t inst;
-    uint32_t regs[16];
-    char disasm[64];
-} CycleHist;
-static CycleHist history[HIST_SIZE];
-static int hist_idx = 0;
-static int hist_count = 0;
-
-static void record_cycle_history() {
-    CycleHist *h = &history[hist_idx % HIST_SIZE];
-    h->cyc = cycle;
-    h->pc = pc_before;
-    h->inst = inst_before;
-    for (int i = 0; i < 16; i++) {
-        h->regs[i] = (&top->io_debug_regs_0)[i];
-    }
-    disassemble_instruction(pc_before, inst_before, h->disasm, sizeof(h->disasm));
-    hist_idx++;
-    hist_count++;
-}
-
-static void dump_history() {
-    printf("\n===== CYCLE HISTORY (last %d cycles) =====\n", HIST_SIZE);
-    int start = hist_count > HIST_SIZE ? hist_count - HIST_SIZE : 0;
-    for (int i = start; i < hist_count; i++) {
-        CycleHist *h = &history[i % HIST_SIZE];
-        printf("--- Cycle %llu ---\n", h->cyc);
-        printf("PC=0x%08x INST=0x%08x %s\n", h->pc, h->inst, h->disasm);
-        printf("REGS: ");
-        for (int r = 0; r < 16; r++) {
-            printf("x%d=0x%08x ", r, h->regs[r]);
-            if (r == 7) printf("\n      ");
-        }
-        printf("\n");
-    }
-    printf("===== END HISTORY =====\n\n");
-}
 
 // 获取系统运行微秒数（用于 RTC）
 static uint64_t get_uptime_us() {
@@ -228,11 +175,16 @@ static void disassemble_instruction(uint32_t pc, uint32_t inst, char *buffer, si
 
 static void print_debug_info() {
     printf("---- Cycle %llu ----\n", cycle);
-    printf("PC = 0x%08x (before execution)\n", pc_before);
-    printf("INST = 0x%08x\n", inst_before);
+    printf("%s\n", stall_before ? "Dual-issue mode: STALLED (single issue)" : "Dual-issue mode: DUAL ISSUE");
+    printf("INST1: PC = 0x%08x, INST = 0x%08x\n", pc_before, inst_before);
     char disasm[128];
     disassemble_instruction(pc_before, inst_before, disasm, sizeof(disasm));
-    printf("Instruction: %s\n", disasm);
+    printf("       Instruction: %s\n", disasm);
+    if (!stall_before) {
+        disassemble_instruction(pc2_before, inst2_before, disasm, sizeof(disasm));
+        printf("INST2: PC = 0x%08x, INST = 0x%08x\n", pc2_before, inst2_before);
+        printf("       Instruction: %s\n", disasm);
+    }
     printf("lw=%d,lbu=%d,add=%d,addi=%d,sw=%d,sb=%d,jalr=%d,lui=%d\n", lw_before, lbu_before,add_before,addi_before,sw_before,sb_before,jalr_before,lui_before);
     printf("Writebackdata= 0x%08x\n",writeback_before);
     printf("lsu_read_data = 0x%08x\n", io_debug_lsu_rdata_before);
@@ -246,86 +198,25 @@ static void print_debug_info() {
 static int exec_one_cycle() {
     if (simulation_finished || user_quit) return 0;
 
-    // 记录执行前的状态
-    pc_before = top->io_debug_pc;
-    inst_before = top->io_debug_inst;
-
-    lw_before = top->io_debug_is_lw;
-    lbu_before = top->io_debug_is_lbu;
-    add_before = top->io_debug_is_add;
-    addi_before = top->io_debug_is_addi;
-    jalr_before = top->io_debug_is_jalr;
-    sw_before = top->io_debug_is_sw;
-    sb_before = top->io_debug_is_sb;
-    lui_before = top->io_debug_is_lui;
-
-    writeback_before = top->io_debug_wbData;
-    io_debug_lsu_rdata_before = top->io_debug_lsu_rdata;
-    io_debug_lsu_addr_before = top->io_debug_lsu_addr;
-    io_debug_lsu_wdata_before = top->io_debug_lsu_wdata;
-
-
-
-    // 记录周期历史（执行前状态）
-    record_cycle_history();
+    // 记录执行前的状态（双发射）
+    pc_before = top->io_debug_inst1_pc;
+    inst_before = top->io_debug_inst1;
+    pc2_before = top->io_debug_inst2_pc;
+    inst2_before = top->io_debug_inst2;
+    stall_before = top->io_debug_stall;
 
     top->clock = 0; top->eval();
     top->clock = 1; top->eval();
     cycle++;
 
-    //========================状态对比=========================
-    difftest_exec(1);   
-
-    uint32_t nemu_state[17];   // 前16个是GPR
-    difftest_regcpy(nemu_state, DIFFTEST_TO_DUT);
-
-    uint32_t npc_regs[16] = {
-        top->io_debug_regs_0,  top->io_debug_regs_1,
-        top->io_debug_regs_2,  top->io_debug_regs_3,
-        top->io_debug_regs_4,  top->io_debug_regs_5,
-        top->io_debug_regs_6,  top->io_debug_regs_7,
-        top->io_debug_regs_8,  top->io_debug_regs_9,
-        top->io_debug_regs_10, top->io_debug_regs_11,
-        top->io_debug_regs_12, top->io_debug_regs_13,
-        top->io_debug_regs_14, top->io_debug_regs_15
-    };
-
-    int diff_found = 0;
-    for (int i = 0; i < 16; i++) {
-        if (npc_regs[i] != nemu_state[i]) {
-            printf("\n[DIFFTEST] Register mismatch at cycle %llu\n", cycle);
-            printf("Reg[%d]: NPC = 0x%08x, NEMU = 0x%08x\n", i, npc_regs[i], nemu_state[i]);
-            diff_found = 1;
-        }
-    }
-    
-    // ---------------- 对比本周期写入过的内存地址 ----------------
-    for (int i = 0; i < written_count; i++) {
-        uint32_t addr = written_addrs[i];
-        uint32_t off = addr - MEM_BASE;
-        if (off < MEM_SIZE) {
-            uint8_t npc_val = mem[off];
-            uint8_t nemu_val = 0;
-            difftest_memcpy(addr, &nemu_val, 1, DIFFTEST_TO_DUT);
-            if (npc_val != nemu_val) {
-                printf("\n[MEM MISMATCH] cycle %llu, addr 0x%08x, NPC 0x%02x, NEMU 0x%02x\n",
-                       cycle, addr, npc_val, nemu_val);
-                diff_found = 1;
-            }
-        }
-    }
     written_count = 0;   // 清空记录，准备下一周期
 
-    if (diff_found) {
-        print_debug_info();
-        dump_history();
-        printf("[DIFFTEST] Stopping on mismatch at cycle %llu\n", cycle);
-        simulation_finished = 1;
-        good_trap = 0;
+    // DPI 函数（pmem_read/sim_finish）可能在 eval 中设置了 simulation_finished
+    if (simulation_finished) {
+        printf("[INFO] Simulation finished after %llu cycles\n", cycle);
+        printf(good_trap ? "HIT GOOD TRAP\n" : "HIT BAD TRAP\n");
         return 1;
     }
-
-    
 
     if (check_watchpoints()) {
         watchpoint_hit = 1;
@@ -359,54 +250,75 @@ static void isa_reg_display() {
     for (int i = 0; i < 16; i++) {
         uint32_t val;
         switch(i) {
-            case 0: val = top->io_debug_regs_0; break;
-            case 1: val = top->io_debug_regs_1; break;
-            case 2: val = top->io_debug_regs_2; break;
-            case 3: val = top->io_debug_regs_3; break;
-            case 4: val = top->io_debug_regs_4; break;
-            case 5: val = top->io_debug_regs_5; break;
-            case 6: val = top->io_debug_regs_6; break;
-            case 7: val = top->io_debug_regs_7; break;
-            case 8: val = top->io_debug_regs_8; break;
-            case 9: val = top->io_debug_regs_9; break;
-            case 10: val = top->io_debug_regs_10; break;
-            case 11: val = top->io_debug_regs_11; break;
-            case 12: val = top->io_debug_regs_12; break;
-            case 13: val = top->io_debug_regs_13; break;
-            case 14: val = top->io_debug_regs_14; break;
-            case 15: val = top->io_debug_regs_15; break;
+            case 0: val = top->io_debug_grf_regs_0; break;
+            case 1: val = top->io_debug_grf_regs_1; break;
+            case 2: val = top->io_debug_grf_regs_2; break;
+            case 3: val = top->io_debug_grf_regs_3; break;
+            case 4: val = top->io_debug_grf_regs_4; break;
+            case 5: val = top->io_debug_grf_regs_5; break;
+            case 6: val = top->io_debug_grf_regs_6; break;
+            case 7: val = top->io_debug_grf_regs_7; break;
+            case 8: val = top->io_debug_grf_regs_8; break;
+            case 9: val = top->io_debug_grf_regs_9; break;
+            case 10: val = top->io_debug_grf_regs_10; break;
+            case 11: val = top->io_debug_grf_regs_11; break;
+            case 12: val = top->io_debug_grf_regs_12; break;
+            case 13: val = top->io_debug_grf_regs_13; break;
+            case 14: val = top->io_debug_grf_regs_14; break;
+            case 15: val = top->io_debug_grf_regs_15; break;
             default: val = 0;
         }
         printf("%s = 0x%x (%d)\n", regs[i], val, val);  
     }
+    // 打印 CSR 寄存器
+    printf("\n===== CSR Registers =====\n");
+    printf("mcycle    = 0x%016llx (%llu)\n",
+           (unsigned long long)(top->io_debug_mcycle),
+           (unsigned long long)(top->io_debug_mcycle));
+    printf("minstret  = 0x%016llx (%llu)\n",
+           (unsigned long long)(top->io_debug_minstret),
+           (unsigned long long)(top->io_debug_minstret));
+    printf("mstatus   = 0x%08x (%u)\n", top->io_debug_mstatus, top->io_debug_mstatus);
+    printf("mie       = 0x%08x (%u)\n", top->io_debug_mie, top->io_debug_mie);
+    printf("mtvec     = 0x%08x (%u)\n", top->io_debug_mtvec, top->io_debug_mtvec);
+    printf("mepc      = 0x%08x (%u)\n", top->io_debug_mepc, top->io_debug_mepc);
+    printf("mcause    = 0x%08x (%u)\n", top->io_debug_mcause, top->io_debug_mcause);
+    printf("mtval     = 0x%08x (%u)\n", top->io_debug_mtval, top->io_debug_mtval);
+    printf("mip       = 0x%08x (%u)\n", top->io_debug_mip, top->io_debug_mip);
+    printf("mscratch  = 0x%08x (%u)\n", top->io_debug_mscratch, top->io_debug_mscratch);
+    printf("mvendorid = 0x%08x (%u)\n", top->io_debug_mvendorid, top->io_debug_mvendorid);
+    printf("marchid   = 0x%08x (%u)\n", top->io_debug_marchid, top->io_debug_marchid);
+    printf("mimpid    = 0x%08x (%u)\n", top->io_debug_mimpid, top->io_debug_mimpid);
+    printf("mhartid   = 0x%08x (%u)\n", top->io_debug_mhartid, top->io_debug_mhartid);
+    printf("==========================\n");
 }
 
 static uint32_t isa_reg_str2val(const char *s, bool *success) {
     if (strcmp(s, "pc") == 0 || strcmp(s, "PC") == 0) {
         *success = true;
-        return top->io_debug_pc;
+        return top->io_debug_inst1_pc;
     }
     for (int i = 0; i < 16; i++) {
         if (strcmp(regs[i], s) == 0) {
             *success = true;
             uint32_t val;
             switch(i) {
-                case 0: val = top->io_debug_regs_0; break;
-                case 1: val = top->io_debug_regs_1; break;
-                case 2: val = top->io_debug_regs_2; break;
-                case 3: val = top->io_debug_regs_3; break;
-                case 4: val = top->io_debug_regs_4; break;
-                case 5: val = top->io_debug_regs_5; break;
-                case 6: val = top->io_debug_regs_6; break;
-                case 7: val = top->io_debug_regs_7; break;
-                case 8: val = top->io_debug_regs_8; break;
-                case 9: val = top->io_debug_regs_9; break;
-                case 10: val = top->io_debug_regs_10; break;
-                case 11: val = top->io_debug_regs_11; break;
-                case 12: val = top->io_debug_regs_12; break;
-                case 13: val = top->io_debug_regs_13; break;
-                case 14: val = top->io_debug_regs_14; break;
-                case 15: val = top->io_debug_regs_15; break;
+                case 0: val = top->io_debug_grf_regs_0; break;
+                case 1: val = top->io_debug_grf_regs_1; break;
+                case 2: val = top->io_debug_grf_regs_2; break;
+                case 3: val = top->io_debug_grf_regs_3; break;
+                case 4: val = top->io_debug_grf_regs_4; break;
+                case 5: val = top->io_debug_grf_regs_5; break;
+                case 6: val = top->io_debug_grf_regs_6; break;
+                case 7: val = top->io_debug_grf_regs_7; break;
+                case 8: val = top->io_debug_grf_regs_8; break;
+                case 9: val = top->io_debug_grf_regs_9; break;
+                case 10: val = top->io_debug_grf_regs_10; break;
+                case 11: val = top->io_debug_grf_regs_11; break;
+                case 12: val = top->io_debug_grf_regs_12; break;
+                case 13: val = top->io_debug_grf_regs_13; break;
+                case 14: val = top->io_debug_grf_regs_14; break;
+                case 15: val = top->io_debug_grf_regs_15; break;
                 default: val = 0;
             }
             return val;
@@ -459,6 +371,7 @@ static struct rule {
     {" +", TK_NOTYPE},                    // 空格（忽略）
 };
 
+#define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 #define NR_REGEX ARRLEN(rules)
 
 static regex_t re[NR_REGEX] = {};
@@ -1087,13 +1000,6 @@ int main(int argc, char **argv) {
         return 1;
     }
     load_program(argv[1], MEM_BASE);
-
-    difftest_init();                                            // 初始化 NEMU
-
-    difftest_memcpy(MEM_BASE, mem, MEM_SIZE, DIFFTEST_TO_REF);  // 同步内存
-    unsigned int init_regs[17] = {0};                           // 16个GPR + PC
-    init_regs[16] = MEM_BASE;                                   // 初始 PC
-    difftest_regcpy(init_regs, DIFFTEST_TO_REF);                // 同步寄存器
 
     // 初始化 Capstone 反汇编引擎
     if (cs_open(CS_ARCH_RISCV, CS_MODE_RISCV32, &capstone_handle) != CS_ERR_OK) {

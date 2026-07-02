@@ -9,7 +9,6 @@
 #include <stdint.h> 
 #include <assert.h>
 #include <capstone/capstone.h>   // 新增 Capstone 反汇编库
-#include "/home/sdark/ysyx-workbench/nemu/include/difftest-def.h"
 
 #define panic(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while(0)
 typedef uint32_t word_t;
@@ -26,17 +25,8 @@ static uint32_t written_addrs[MAX_WRITES];
 static int written_count = 0;
 
 
-// 声明 difftest 接口
-extern "C" {
-    void difftest_init();
-    void difftest_memcpy(unsigned int addr, void *buf, size_t n, int direction);
-    void difftest_regcpy(void *dut, int direction);
-    void difftest_exec(unsigned long long n);
-}
 
 
-#define DIFFTEST_TO_REF   1   // NPC -> NEMU
-#define DIFFTEST_TO_DUT   0   // NEMU -> NPC
 
 // 仿真启动时刻
 static auto boot_time = std::chrono::steady_clock::now();
@@ -273,55 +263,11 @@ static int exec_one_cycle() {
     top->clock = 1; top->eval();
     cycle++;
 
-    //========================状态对比=========================
-    difftest_exec(1);   
-
-    uint32_t nemu_state[17];   // 前16个是GPR
-    difftest_regcpy(nemu_state, DIFFTEST_TO_DUT);
-
-    uint32_t npc_regs[16] = {
-        top->io_debug_regs_0,  top->io_debug_regs_1,
-        top->io_debug_regs_2,  top->io_debug_regs_3,
-        top->io_debug_regs_4,  top->io_debug_regs_5,
-        top->io_debug_regs_6,  top->io_debug_regs_7,
-        top->io_debug_regs_8,  top->io_debug_regs_9,
-        top->io_debug_regs_10, top->io_debug_regs_11,
-        top->io_debug_regs_12, top->io_debug_regs_13,
-        top->io_debug_regs_14, top->io_debug_regs_15
-    };
-
-    int diff_found = 0;
-    for (int i = 0; i < 16; i++) {
-        if (npc_regs[i] != nemu_state[i]) {
-            printf("\n[DIFFTEST] Register mismatch at cycle %llu\n", cycle);
-            printf("Reg[%d]: NPC = 0x%08x, NEMU = 0x%08x\n", i, npc_regs[i], nemu_state[i]);
-            diff_found = 1;
-        }
-    }
-    
-    // ---------------- 对比本周期写入过的内存地址 ----------------
-    for (int i = 0; i < written_count; i++) {
-        uint32_t addr = written_addrs[i];
-        uint32_t off = addr - MEM_BASE;
-        if (off < MEM_SIZE) {
-            uint8_t npc_val = mem[off];
-            uint8_t nemu_val = 0;
-            difftest_memcpy(addr, &nemu_val, 1, DIFFTEST_TO_DUT);
-            if (npc_val != nemu_val) {
-                printf("\n[MEM MISMATCH] cycle %llu, addr 0x%08x, NPC 0x%02x, NEMU 0x%02x\n",
-                       cycle, addr, npc_val, nemu_val);
-                diff_found = 1;
-            }
-        }
-    }
     written_count = 0;   // 清空记录，准备下一周期
 
-    if (diff_found) {
-        print_debug_info();
+    // DPI 函数（pmem_read/sim_finish）可能在 eval 中设置了 simulation_finished
+    if (simulation_finished) {
         dump_history();
-        printf("[DIFFTEST] Stopping on mismatch at cycle %llu\n", cycle);
-        simulation_finished = 1;
-        good_trap = 0;
         return 1;
     }
 
@@ -480,6 +426,7 @@ static struct rule {
     {" +", TK_NOTYPE},                    // 空格（忽略）
 };
 
+#define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 #define NR_REGEX ARRLEN(rules)
 
 static regex_t re[NR_REGEX] = {};
@@ -1108,13 +1055,6 @@ int main(int argc, char **argv) {
         return 1;
     }
     load_program(argv[1], MEM_BASE);
-
-    difftest_init();                                            // 初始化 NEMU
-
-    difftest_memcpy(MEM_BASE, mem, MEM_SIZE, DIFFTEST_TO_REF);  // 同步内存
-    unsigned int init_regs[17] = {0};                           // 16个GPR + PC
-    init_regs[16] = MEM_BASE;                                   // 初始 PC
-    difftest_regcpy(init_regs, DIFFTEST_TO_REF);                // 同步寄存器
 
     // 初始化 Capstone 反汇编引擎
     if (cs_open(CS_ARCH_RISCV, CS_MODE_RISCV32, &capstone_handle) != CS_ERR_OK) {

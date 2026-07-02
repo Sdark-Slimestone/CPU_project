@@ -1,4 +1,4 @@
-[warn] /home/sdark/cpu_project/MyChisel/src/main/scala/top.scala:8:25: class BlackBox in package chisel3 is deprecated (since 7.5.0): use `chisel3.ExtModule` instead. To migrate replace `val io = { ... }` with `val io = FlatIO { ... }`, `object io { ... }; locally { io }`, or manually flatten your IO as `ExtModule` allows calling `IO` more than once.
-[warn] class DPIMemory extends BlackBox {
-[warn]                         ^
-[warn] one warning found
+[0m[[0m[33mwarn[0m] [0m[0m/home/sdark/cpu_project/MyChisel/src/main/scala/top.scala:8:25: class BlackBox in package chisel3 is deprecated (since 7.5.0): use `chisel3.ExtModule` instead. To migrate replace `val io = { ... }` with `val io = FlatIO { ... }`, `object io { ... }; locally { io }`, or manually flatten your IO as `ExtModule` allows calling `IO` more than once.[0m
+[0m[[0m[33mwarn[0m] [0m[0mclass DPIMemory extends BlackBox {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                        ^[0m
+[0m[[0m[33mwarn[0m] [0m[0mone warning found[0m

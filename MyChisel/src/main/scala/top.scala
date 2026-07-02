@@ -83,8 +83,17 @@ class top extends Module {
     val debug_mcycle   = Output(UInt(64.W))
     val debug_minstret = Output(UInt(64.W))
     val debug_mstatus  = Output(UInt(32.W))
-    val debug_mcause   = Output(UInt(32.W))
+    val debug_mie      = Output(UInt(32.W))
+    val debug_mtvec    = Output(UInt(32.W))
     val debug_mepc     = Output(UInt(32.W))
+    val debug_mcause   = Output(UInt(32.W))
+    val debug_mtval    = Output(UInt(32.W))
+    val debug_mip      = Output(UInt(32.W))
+    val debug_mscratch = Output(UInt(32.W))
+    val debug_mvendorid = Output(UInt(32.W))
+    val debug_marchid   = Output(UInt(32.W))
+    val debug_mimpid    = Output(UInt(32.W))
+    val debug_mhartid   = Output(UInt(32.W))
   })
 
   // ========== 实例化所有模块 ==========
@@ -192,9 +201,9 @@ class top extends Module {
   csr.io.is_ebreak  := idu.io.idu_to_top.is_ebreak
   csr.io.current_pc := idu.io.idu_to_top.inst1_pc
 
-  // 指令退休计数：正常指令（非ecall/ebreak）退休
-  val normal_inst = !idu.io.idu_to_top.is_ebreak && !idu.io.idu_to_top.is_ecall
-  csr.io.inst_retire := normal_inst
+  // 指令退休计数：正常才退休，stall则+1（单发射），双发射则+2
+  val inst_ok = !idu.io.idu_to_top.is_ebreak && !idu.io.idu_to_top.is_ecall
+  csr.io.inst_retire := Mux(inst_ok, Mux(idu.io.idu_to_ifu.is_stall, 1.U(2.W), 2.U(2.W)), 0.U(2.W))
 
   // ===================== CSR 写回 GRF =====================
   // CSR 指令写回旧CSR值到rd（顶层直接连接GRF）
@@ -270,11 +279,20 @@ class top extends Module {
   io.debug_grf_input  := grf.io.debug_input
 
   // --- CSR ---
-  io.debug_mcycle   := csr.io.debug_mcycle
-  io.debug_minstret := csr.io.debug_minstret
-  io.debug_mstatus  := csr.io.debug_mstatus
-  io.debug_mcause   := csr.io.debug_mcause
-  io.debug_mepc     := csr.io.debug_mepc
+  io.debug_mcycle    := csr.io.debug_mcycle
+  io.debug_minstret  := csr.io.debug_minstret
+  io.debug_mstatus   := csr.io.debug_mstatus
+  io.debug_mie       := csr.io.debug_mie
+  io.debug_mtvec     := csr.io.debug_mtvec
+  io.debug_mepc      := csr.io.debug_mepc
+  io.debug_mcause    := csr.io.debug_mcause
+  io.debug_mtval     := csr.io.debug_mtval
+  io.debug_mip       := csr.io.debug_mip
+  io.debug_mscratch  := csr.io.debug_mscratch
+  io.debug_mvendorid := csr.io.debug_mvendorid
+  io.debug_marchid   := csr.io.debug_marchid
+  io.debug_mimpid    := csr.io.debug_mimpid
+  io.debug_mhartid   := csr.io.debug_mhartid
 }
 
 object top extends App {

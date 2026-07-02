@@ -1,6 +1,36 @@
-[debug] [zinc] IncrementalCompile -----------
-[debug] IncrementalCompile.incrementalCompile
-[debug] previous = Stamps for: 95 products, 11 sources, 2 libraries
-[debug] current source = Set(${BASE}/src/main/scala/GRF.scala, ${BASE}/src/main/scala/wbu.scala, ${BASE}/src/main/scala/idu.scala, ${BASE}/src/main/scala/decoder.scala, ${BASE}/src/main/scala/top.scala, ${BASE}/src/main/scala/ifu.scala, ${BASE}/src/main/scala/imem.scala, ${BASE}/src/main/scala/csr.scala, ${BASE}/src/main/scala/dmem.scala, ${BASE}/src/main/scala/lsu.scala, ${BASE}/src/main/scala/exu.scala)
-[debug] > initialChanges = InitialChanges(Changes(added = Set(), removed = Set(), changed = Set(), unmodified = ...),Set(),Set(),API Changes: Set())
-[debug] No changes
+[0m[[0m[0mdebug[0m] [0m[0m[zinc] IncrementalCompile -----------[0m
+[0m[[0m[0mdebug[0m] [0m[0mIncrementalCompile.incrementalCompile[0m
+[0m[[0m[0mdebug[0m] [0m[0mprevious = Stamps for: 40 products, 8 sources, 2 libraries[0m
+[0m[[0m[0mdebug[0m] [0m[0mcurrent source = Set(${BASE}/src/main/scala/GRF.scala, ${BASE}/src/main/scala/wbu.scala, ${BASE}/src/main/scala/idu.scala, ${BASE}/src/main/scala/decoder.scala, ${BASE}/src/main/scala/top.scala, ${BASE}/src/main/scala/ifu.scala, ${BASE}/src/main/scala/imem.scala, ${BASE}/src/main/scala/csr.scala, ${BASE}/src/main/scala/dmem.scala, ${BASE}/src/main/scala/lsu.scala, ${BASE}/src/main/scala/exu.scala)[0m
+[0m[[0m[0mdebug[0m] [0m[0m> initialChanges = InitialChanges(Changes(added = Set(${BASE}/src/main/scala/dmem.scala, ${BASE}/src/main/scala/decoder.scala, ${BASE}/src/main/scala/imem.scala), removed = Set(), changed = Set(${BASE}/src/main/scala/idu.scala, ${BASE}/src/main/scala/GRF.scala, ${BASE}/src/main/scala/lsu.scala, ${BASE}/src/main/scala/ifu.scala, ${BASE}/src/main/scala/top.scala, ${BASE}/src/main/scala/wbu.scala, ${BASE}/src/main/scala/exu.scala, ${BASE}/src/main/scala/csr.scala), unmodified = ...),Set(),Set(),API Changes: Set())[0m
+[0m[[0m[0mdebug[0m] [0m[0m[0m
+[0m[[0m[0mdebug[0m] [0m[0mInitial source changes:[0m
+[0m[[0m[0mdebug[0m] [0m[0m	removed: Set()[0m
+[0m[[0m[0mdebug[0m] [0m[0m	added: Set(${BASE}/src/main/scala/dmem.scala, ${BASE}/src/main/scala/decoder.scala, ${BASE}/src/main/scala/imem.scala)[0m
+[0m[[0m[0mdebug[0m] [0m[0m	modified: Set(${BASE}/src/main/scala/GRF.scala, ${BASE}/src/main/scala/wbu.scala, ${BASE}/src/main/scala/idu.scala, ${BASE}/src/main/scala/top.scala, ${BASE}/src/main/scala/ifu.scala, ${BASE}/src/main/scala/csr.scala, ${BASE}/src/main/scala/lsu.scala, ${BASE}/src/main/scala/exu.scala)[0m
+[0m[[0m[0mdebug[0m] [0m[0mInvalidated products: Set()[0m
+[0m[[0m[0mdebug[0m] [0m[0mExternal API changes: API Changes: Set()[0m
+[0m[[0m[0mdebug[0m] [0m[0mModified binary dependencies: Set()[0m
+[0m[[0m[0mdebug[0m] [0m[0mInitial directly invalidated classes: Set(rv32ecsr.InstructionDecoder, rv32ecsr.BRU, rv32ecsr.AGU, rv32ecsr.InputMUXforALU, rv32ecsr.InputMUXforGRF, rv32ecsr.GRF, rv32ecsr.CSR, rv32ecsr.IFU, rv32ecsr.DPIMemory, rv32ecsr.InformationDecoder, rv32ecsr.WBU, rv32ecsr.top, rv32ecsr.CSRAddr, rv32ecsr.EXU, rv32ecsr.LSU, rv32ecsr.InputMUXforAGU, rv32ecsr.ALU, rv32ecsr.idu, rv32ecsr.AddrPassthrough)[0m
+[0m[[0m[0mdebug[0m] [0m[0mSources indirectly invalidated by:[0m
+[0m[[0m[0mdebug[0m] [0m[0m	product: Set()[0m
+[0m[[0m[0mdebug[0m] [0m[0m	binary dep: Set()[0m
+[0m[[0m[0mdebug[0m] [0m[0m	external source: Set()[0m
+[0m[[0m[0mdebug[0m] [0m[0mall 11 sources are invalidated[0m
+[0m[[0m[0mdebug[0m] [0m[0mInitial set of included nodes: rv32ecsr.InstructionDecoder, rv32ecsr.BRU, rv32ecsr.AGU, rv32ecsr.InputMUXforALU, rv32ecsr.InputMUXforGRF, rv32ecsr.GRF, rv32ecsr.CSR, rv32ecsr.IFU, rv32ecsr.DPIMemory, rv32ecsr.InformationDecoder, rv32ecsr.WBU, rv32ecsr.top, rv32ecsr.CSRAddr, rv32ecsr.EXU, rv32ecsr.LSU, rv32ecsr.InputMUXforAGU, rv32ecsr.ALU, rv32ecsr.idu, rv32ecsr.AddrPassthrough[0m
+[0m[[0m[0mdebug[0m] [0m[0mRecompiling all sources: number of invalidated sources > 50.0 percent of all sources[0m
+[0m[[0m[0mdebug[0m] [0m[0mcompilation cycle 1[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 11 Scala sources to /home/sdark/cpu_project/MyChisel/target/scala-2.13/classes ...[0m
+[0m[[0m[0mdebug[0m] [0m[0mReturning already retrieved and compiled bridge: /home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala2-sbt-bridge/2.13.18/scala2-sbt-bridge-2.13.18.jar.[0m
+[0m[[0m[0mdebug[0m] [0m[0m[zinc] Running cached compiler 254e1333 for Scala compiler version 2.13.18[0m
+[0m[[0m[0mdebug[0m] [0m[0m[zinc] The Scala compiler is invoked with:[0m
+[0m[[0m[0mdebug[0m] [0m[0m	-language:reflectiveCalls[0m
+[0m[[0m[0mdebug[0m] [0m[0m	-deprecation[0m
+[0m[[0m[0mdebug[0m] [0m[0m	-feature[0m
+[0m[[0m[0mdebug[0m] [0m[0m	-Xcheckinit[0m
+[0m[[0m[0mdebug[0m] [0m[0m	-Ymacro-annotations[0m
+[0m[[0m[0mdebug[0m] [0m[0m	-Xplugin:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/org/chipsalliance/chisel-plugin_2.13.18/7.7.0/chisel-plugin_2.13.18-7.7.0.jar[0m
+[0m[[0m[0mdebug[0m] [0m[0m	-classpath[0m
+[0m[[0m[0mdebug[0m] [0m[0m	/home/sdark/cpu_project/MyChisel/target/scala-2.13/classes:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.18/scala-library-2.13.18.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/org/chipsalliance/chisel_2.13/7.7.0/chisel_2.13-7.7.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.13/4.1.0/scopt_2.13-4.1.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/org/apache/commons/commons-text/1.15.0/commons-text-1.15.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/os-lib_2.13/0.10.7/os-lib_2.13-0.10.7.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/json4s/json4s-native_2.13/4.1.0/json4s-native_2.13-4.1.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/alexarchambault/data-class_2.13/0.2.7/data-class_2.13-0.2.7.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.13.18/scala-reflect-2.13.18.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/upickle_2.13/3.3.1/upickle_2.13-3.3.1.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/org/chipsalliance/firtool-resolver_2.13/2.0.1/firtool-resolver_2.13-2.0.1.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/org/apache/commons/commons-lang3/3.20.0/commons-lang3-3.20.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/geny_2.13/1.1.1/geny_2.13-1.1.1.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/json4s/json4s-core_2.13/4.1.0/json4s-core_2.13-4.1.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/json4s/json4s-native-core_2.13/4.1.0/json4s-native-core_2.13-4.1.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/ujson_2.13/3.3.1/ujson_2.13-3.3.1.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/upack_2.13/3.3.1/upack_2.13-3.3.1.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/upickle-implicits_2.13/3.3.1/upickle-implicits_2.13-3.3.1.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.13/2.2.0/scala-xml_2.13-2.2.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-collection-compat_2.13/2.11.0/scala-collection-compat_2.13-2.11.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/json4s/json4s-ast_2.13/4.1.0/json4s-ast_2.13-4.1.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/json4s/json4s-scalap_2.13/4.1.0/json4s-scalap_2.13-4.1.0.jar:/home/sdark/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/upickle-core_2.13/3.3.1/upickle-core_2.13-3.3.1.jar[0m
+[0m[[0m[0mdebug[0m] [0m[0mScala compilation took 5.361867651 s[0m
+[0m[[0m[0mdebug[0m] [0m[0mdone compiling[0m

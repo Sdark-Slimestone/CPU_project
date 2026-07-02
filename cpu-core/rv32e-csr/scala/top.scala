@@ -51,6 +51,21 @@ class top extends Module {
     val debug_lsu_ren   = Output(Bool())
     val debug_lsu_rdata = Output(UInt(32.W))
     val debug_inst = Output(UInt(32.W))
+    // CSR debug 输出（所有可读 CSR 寄存器）
+    val debug_mcycle   = Output(UInt(64.W))
+    val debug_minstret = Output(UInt(64.W))
+    val debug_mstatus  = Output(UInt(32.W))
+    val debug_mie      = Output(UInt(32.W))
+    val debug_mtvec    = Output(UInt(32.W))
+    val debug_mepc     = Output(UInt(32.W))
+    val debug_mcause   = Output(UInt(32.W))
+    val debug_mtval    = Output(UInt(32.W))
+    val debug_mip      = Output(UInt(32.W))
+    val debug_mscratch = Output(UInt(32.W))
+    val debug_mvendorid = Output(UInt(32.W))
+    val debug_marchid   = Output(UInt(32.W))
+    val debug_mimpid    = Output(UInt(32.W))
+    val debug_mhartid   = Output(UInt(32.W))
   })
 
   val ifu = Module(new IFU)
@@ -285,6 +300,22 @@ class top extends Module {
   io.debug_lsu_ren   := lsu.io.dmemRen
   io.debug_lsu_rdata := lsu.io.dmemRdata
   io.debug_inst := idu.io.debug_inst
+
+  // CSR debug 连接
+  io.debug_mcycle    := csr.io.debug_mcycle
+  io.debug_minstret  := csr.io.debug_minstret
+  io.debug_mstatus   := csr.io.debug_mstatus
+  io.debug_mie       := csr.io.debug_mie
+  io.debug_mtvec     := csr.io.debug_mtvec
+  io.debug_mepc      := csr.io.debug_mepc
+  io.debug_mcause    := csr.io.debug_mcause
+  io.debug_mtval     := csr.io.debug_mtval
+  io.debug_mip       := csr.io.debug_mip
+  io.debug_mscratch  := csr.io.debug_mscratch
+  io.debug_mvendorid := csr.io.debug_mvendorid
+  io.debug_marchid   := csr.io.debug_marchid
+  io.debug_mimpid    := csr.io.debug_mimpid
+  io.debug_mhartid   := csr.io.debug_mhartid
 }
 
 object top extends App {

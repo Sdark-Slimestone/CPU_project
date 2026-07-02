@@ -317,6 +317,27 @@ static void isa_reg_display() {
         }
         printf("%s = 0x%x (%d)\n", regs[i], val, val);  
     }
+    // 打印 CSR 寄存器
+    printf("\n===== CSR Registers =====\n");
+    printf("mcycle    = 0x%016llx (%llu)\n",
+           (unsigned long long)(top->io_debug_mcycle),
+           (unsigned long long)(top->io_debug_mcycle));
+    printf("minstret  = 0x%016llx (%llu)\n",
+           (unsigned long long)(top->io_debug_minstret),
+           (unsigned long long)(top->io_debug_minstret));
+    printf("mstatus   = 0x%08x (%u)\n", top->io_debug_mstatus, top->io_debug_mstatus);
+    printf("mie       = 0x%08x (%u)\n", top->io_debug_mie, top->io_debug_mie);
+    printf("mtvec     = 0x%08x (%u)\n", top->io_debug_mtvec, top->io_debug_mtvec);
+    printf("mepc      = 0x%08x (%u)\n", top->io_debug_mepc, top->io_debug_mepc);
+    printf("mcause    = 0x%08x (%u)\n", top->io_debug_mcause, top->io_debug_mcause);
+    printf("mtval     = 0x%08x (%u)\n", top->io_debug_mtval, top->io_debug_mtval);
+    printf("mip       = 0x%08x (%u)\n", top->io_debug_mip, top->io_debug_mip);
+    printf("mscratch  = 0x%08x (%u)\n", top->io_debug_mscratch, top->io_debug_mscratch);
+    printf("mvendorid = 0x%08x (%u)\n", top->io_debug_mvendorid, top->io_debug_mvendorid);
+    printf("marchid   = 0x%08x (%u)\n", top->io_debug_marchid, top->io_debug_marchid);
+    printf("mimpid    = 0x%08x (%u)\n", top->io_debug_mimpid, top->io_debug_mimpid);
+    printf("mhartid   = 0x%08x (%u)\n", top->io_debug_mhartid, top->io_debug_mhartid);
+    printf("==========================\n");
 }
 
 static uint32_t isa_reg_str2val(const char *s, bool *success) {

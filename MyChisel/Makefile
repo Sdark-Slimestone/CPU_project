@@ -3,7 +3,7 @@ genv:
 	sbt run
 	mkdir -p verilog
 	mv -f *.sv verilog/
-	verilator --lint-only -Wall -Wno-UNUSEDSIGNAL verilog/*.sv
+	verilator --lint-only -Wall -Wno-UNUSEDSIGNAL -Wno-MULTITOP verilog/*.sv
 
 # 运行测试
 test:

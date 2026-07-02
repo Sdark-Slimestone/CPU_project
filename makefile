@@ -65,6 +65,7 @@ prepare-sta-src: genv
 			$(SV2V) "$$f" > "$${f%.sv}.v"; \
 			echo "转换: $$f -> $${f%.sv}.v"; \
 			rm -f "$$f"; \
+			echo "删除原文件: $$f"; \
 		fi; \
 	done
 
@@ -104,66 +105,109 @@ yosys-clean:
 	$(MAKE) -C "$(YOSYS_STA_DIR)" clean
 
 
-# ========== NPC 模拟器构建 ==========
-NPC_DIR = temper_npc
+# ========== NPC 模拟器构建（重构版） ==========
+# 用法:
+#   make npc core=rv32e-csr sim=no     # 干净版本，什么都不带
+#   make npc core=rv32e-csr sim=sdb    # 带 sdb/capstone
+#   make npc core=rv32e-csr sim=diff   # 带 sdb + diff/NEMU
+#
+# core: cpu-core 下的核心文件夹名（如 rv32e-csr, R1322IAe-csr, minirv 等）
+# sim:  cpp 文件类型
+#   no   = 基础版本，使用 sim_main_io.cpp
+#   sdb  = 带 sdb/capstone，使用 sim_main_io_sdb.cpp
+#   diff = 带 sdb + diff/NEMU，使用 sim_main_io_sdb_diff.cpp
+#
+# 构建后 npc 二进制放入 cpu-core/<core>/npc-core/ 并自动清理
+
+NPC_TEMP_DIR = temper_npc
 CAP_DIR ?= /home/sdark/ysyx-workbench/nemu/tools/capstone/repo
 NEMU_INC ?= /home/sdark/ysyx-workbench/nemu/include
 NEMU_LIB ?= /home/sdark/cpu_project/nemu-so/riscv32-nemu-interpreter-so
 
-# 基础准备：复制 DPI 文件（不复制 C++）
+# sim 参数 -> cpp 文件名映射
+SIM_CPP_no   = sim_main_io.cpp
+SIM_CPP_sdb  = sim_main_io_sdb.cpp
+SIM_CPP_diff = sim_main_io_sdb_diff.cpp
+
+# sim 参数 -> 输出二进制名
+SIM_BIN_no   = npc
+SIM_BIN_sdb  = npc-sdb
+SIM_BIN_diff = npc-diff
+
+# sim 参数 -> 额外的 Verilator 编译/链接 flags
+SIM_EXTRA_FLAGS_no   =
+SIM_EXTRA_FLAGS_sdb  = --CFLAGS "-I$(CAP_DIR)/include" --LDFLAGS "-L$(CAP_DIR) -lcapstone -Wl,-rpath,$(CAP_DIR)"
+SIM_EXTRA_FLAGS_diff = --CFLAGS "-I$(CAP_DIR)/include -I$(NEMU_INC)" \
+	--LDFLAGS "-L$(CAP_DIR) -lcapstone -Wl,-rpath,$(CAP_DIR) $(NEMU_LIB) -lreadline -Wl,-rpath,/home/sdark/ysyx-workbench/nemu/build"
+
+# 基础准备：复制 DPI 文件，依赖 genv 生成 Verilog
 .PHONY: prepare-npc
 prepare-npc: genv
-	@mkdir -p $(NPC_DIR)
+	@mkdir -p $(NPC_TEMP_DIR)
 	@echo "复制 DPI_Memory.v 到 $(CHISEL_VERILOG_DIR)"
 	cp $(CHISEL_DIR)/src/main/resources/DPI_Memory.v $(CHISEL_VERILOG_DIR)/
 
-# npc: 基础版本 (sim_main_io.cpp)
+# 统一 npc 构建入口
 .PHONY: npc
-npc: prepare-npc
-	@echo "清理旧的构建产物..."
-	rm -rf $(NPC_DIR)/obj_dir $(NPC_DIR)/npc
-	cp $(CHISEL_DIR)/src/main/cppfile/sim_main_io.cpp $(CHISEL_VERILOG_DIR)/
-	cd $(NPC_DIR) && \
+npc:
+ifndef core
+	$(error 错误：请指定 core 变量，例如 make npc core=rv32e-csr sim=no)
+endif
+ifndef sim
+	$(error 错误：请指定 sim 变量（no/sdb/diff），例如 make npc core=rv32e-csr sim=no)
+endif
+	@sim_cpp="$(SIM_CPP_$(sim))"; \
+	sim_cpp_file="cpu-core/$(core)/cppfile/$$sim_cpp"; \
+	sim_bin="$(SIM_BIN_$(sim))"; \
+	if [ ! -d "cpu-core/$(core)" ]; then \
+		echo "错误：目录 cpu-core/$(core) 不存在"; \
+		exit 1; \
+	fi; \
+	if [ ! -f "$$sim_cpp_file" ]; then \
+		echo "错误：cppfile $$sim_cpp 在 cpu-core/$(core)/cppfile/ 中不存在"; \
+		exit 1; \
+	fi; \
+	echo "=== 部署核心: $(core) ==="; \
+	$(MAKE) deploy-core core=$(core); \
+	echo "=== 生成 Verilog ==="; \
+	$(MAKE) genv; \
+	echo "=== 准备 NPC 构建（sim=$(sim)） ==="; \
+	mkdir -p $(NPC_TEMP_DIR); \
+	cp $(CHISEL_DIR)/src/main/resources/DPI_Memory.v $(CHISEL_VERILOG_DIR)/; \
+	echo "清理旧的构建产物..."; \
+	rm -rf $(NPC_TEMP_DIR)/obj_dir $(NPC_TEMP_DIR)/$$sim_bin; \
+	echo "使用 cppfile: $$sim_cpp"; \
+	cp "$$sim_cpp_file" $(CHISEL_VERILOG_DIR)/; \
+	echo "=== 运行 Verilator ==="; \
+	cd $(NPC_TEMP_DIR) && \
 	verilator -Wall -Wno-fatal --cc --exe --build -j 0 --top-module top \
 		../$(CHISEL_VERILOG_DIR)/*.sv \
 		../$(CHISEL_VERILOG_DIR)/DPI_Memory.v \
-		../$(CHISEL_VERILOG_DIR)/sim_main_io.cpp \
-		-o npc
+		../$(CHISEL_VERILOG_DIR)/$$sim_cpp \
+		-o $$sim_bin \
+		$(SIM_EXTRA_FLAGS_$(sim)) && \
+	cd .. && \
+	echo "=== 清空 cpu-core/$(core)/npc-core/ ==="; \
+	rm -rf cpu-core/$(core)/npc-core; \
+	mkdir -p cpu-core/$(core)/npc-core; \
+	echo "=== 将新二进制放入 cpu-core/$(core)/npc-core/ ==="; \
+	mv $(NPC_TEMP_DIR)/obj_dir/$$sim_bin cpu-core/$(core)/npc-core/$$sim_bin; \
+	echo "=== 清理构建临时文件 ==="; \
+	rm -rf $(NPC_TEMP_DIR)/obj_dir; \
+	rm -f $(CHISEL_VERILOG_DIR)/$$sim_cpp; \
+	echo "=== 完成 ==="; \
+	echo "npc 已构建: cpu-core/$(core)/npc-core/$$sim_bin"
 
-# npc-sdb: 带 capstone (sim_main_io_sdb.cpp)
-.PHONY: npc-sdb
-npc-sdb: prepare-npc
-	@echo "清理旧的构建产物..."
-	rm -rf $(NPC_DIR)/obj_dir $(NPC_DIR)/npc-sdb
-	cp $(CHISEL_DIR)/src/main/cppfile/sim_main_io_sdb.cpp $(CHISEL_VERILOG_DIR)/
-	cd $(NPC_DIR) && \
-	verilator -Wall -Wno-fatal --cc --exe --build -j 0 --top-module top \
-		../$(CHISEL_VERILOG_DIR)/*.sv \
-		../$(CHISEL_VERILOG_DIR)/DPI_Memory.v \
-		../$(CHISEL_VERILOG_DIR)/sim_main_io_sdb.cpp \
-		-o npc \
-		--CFLAGS "-I$(CAP_DIR)/include" \
-		--LDFLAGS "-L$(CAP_DIR) -lcapstone -Wl,-rpath,$(CAP_DIR)"
-
-# npc-diff: 带 capstone + NEMU (sim_main_io_sdb_diff3.cpp)
-.PHONY: npc-diff
-npc-diff: prepare-npc
-	@echo "清理旧的构建产物..."
-	rm -rf $(NPC_DIR)/obj_dir $(NPC_DIR)/npc-diff
-	cp $(CHISEL_DIR)/src/main/cppfile/sim_main_io_sdb_diff.cpp $(CHISEL_VERILOG_DIR)/
-	cd $(NPC_DIR) && \
-	verilator -Wall -Wno-fatal --cc --exe --build -j 0 --top-module top \
-		../$(CHISEL_VERILOG_DIR)/*.sv \
-		../$(CHISEL_VERILOG_DIR)/DPI_Memory.v \
-		../$(CHISEL_VERILOG_DIR)/sim_main_io_sdb_diff.cpp \
-		-o npc \
-		--CFLAGS "-I$(CAP_DIR)/include -I$(NEMU_INC)" \
-		--LDFLAGS "-L$(CAP_DIR) -lcapstone -Wl,-rpath,$(CAP_DIR) $(NEMU_LIB) -lreadline -Wl,-rpath,/home/sdark/ysyx-workbench/nemu/build"
-
-# 清理 NPC 构建目录
+# 清理 NPC 构建目录及核心文件夹内的 npc-core 产物
 .PHONY: clean-npc
 clean-npc:
-	rm -rf $(NPC_DIR)
+	rm -rf $(NPC_TEMP_DIR)
+ifdef core
+	@if [ -d "cpu-core/$(core)/npc-core" ]; then \
+		echo "清理 cpu-core/$(core)/npc-core/ ..."; \
+		rm -f cpu-core/$(core)/npc-core/npc*; \
+	fi
+endif
 
 
 # ========== 部署 CPU 核心 ==========

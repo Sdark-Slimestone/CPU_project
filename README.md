@@ -1,142 +1,191 @@
-# CPU 项目使用说明
+# CPU 项目
+
+基于 Chisel + Verilator 的 RISC-V CPU 设计与验证工程，支持从 Chisel 源码生成 Verilog，并通过多种方式进行仿真验证：Verilator NPC 仿真、NVBoard FPGA 仿真、ISA 模拟器对比、以及 NEMU diff 对比测试。
+
+所有 CPU 核心均为**单周期**设计。
 
 ## 目录结构
+
+```
 cpu_project/
-├── Makefile # 主控 Makefile
-├── autonv.py # 自动生成 NVBoard 引脚绑定文件
-├── cpu-core/ # 存放不同 CPU 核心源码（子文件夹，如 minirv/）
-├── MyChisel/ # Chisel 工程目录
-│ ├── src/main/scala/ # Chisel 源文件（手工编写）
-│ ├── src/main/cppfile/ # C++ 仿真文件（sim_main_*.cpp）
-│ ├── src/main/resources/ # DPI 相关文件（DPI_Memory.v）
-│ └── verilog/ # make genv 生成的 Verilog 文件
-├── nvboard/myexample/ # NVBoard 仿真工程
-│ ├── vsrc/ # 存放 Verilog 文件（自动从 verilog/ 复制）
-│ └── constr/ # 存放引脚绑定文件 top.nxdc（autonv.py 生成）
-├── isa-emu/ # 指令集模拟器（如 scpu/，minirv/ 等）
-├── yosys-sta/ # 综合与时序分析工具
-├── temper_npc/ # NPC 模拟器构建目录（自动生成）
-└── nemu-so/ # NEMU 动态库（用于 diff 测试）
+├── makefile                  # 主控 Makefile
+├── autonv.py                 # 自动生成 NVBoard 引脚绑定文件
+├── sv2v                      # SystemVerilog → Verilog 转换工具
+│
+├── cpu-core/                 # 各个 CPU 核心源码（独立子文件夹）
+│   ├── rv32e/                # RV32E 单发射
+│   ├── rv32e-csr/            # RV32E + CSR (Zicsr)，单发射
+│   ├── R1322IAe/             # 同构双发射 RV32E
+│   ├── R1322IAe-csr/         # 同构双发射 RV32E + CSR (Zicsr)
+│   ├── R1322VA/              # R1322VA 架构模块 (PPU, GRF)
+│   ├── minirv/               # 早期 RV32I 核心
+│   └── scpu/                 # Verilog 简单 CPU
+│
+├── MyChisel/                 # Chisel 工程目录（deploy 目标）
+│   ├── build.sbt / build.mill
+│   ├── Makefile              # genv/test/clean 代理
+│   ├── DPI_Memory.v          # DPI-C 存储器黑盒
+│   ├── filelist.f            # 文件列表（供其他工具使用）
+│   ├── verilog/              # make genv 生成的 Verilog 文件
+│   └── src/
+│       └── main/             # 被 deploy-core 替换的源码目录
+│           ├── scala/
+│           ├── cppfile/
+│           └── resources/
+│
+├── temper_npc/               # NPC 模拟器临时构建目录
+├── nemu-so/                  # NEMU 动态库，用于 diff 测试
+├── nvboard/                  # NVBoard 仿真环境
+│   ├── myexample/            # 用户仿真工程
+│   └── scripts/              # auto_pin_bind.py 等
+├── isa-emu/                  # ISA 模拟器
+│   ├── scpu/
+│   └── minirv/
+└── yosys-sta/                # Yosys 综合 + iSTA 时序分析
+    ├── Makefile
+    ├── scripts/yosys.tcl
+    └── example/              # 评估用 RTL 文件
+```
 
-text
+## 各 CPU 核心一览
 
-## 顶层模块端口命名要求
+所有核心均为单周期设计。各核心按功能阶段划分模块（如 IFU/取指、IDU/译码、EXU/执行、LSU/访存、WBU/写回、CSR），但各阶段组合为单周期通路。
 
-`autonv.py` 会根据端口名自动绑定 NVBoard 引脚。规则如下：
+| 核心名称 | ISA | 发射宽度 | 备注 |
+|----------|-----|---------|------|
+| `rv32e` | RV32E | 1 | 基础单发射单周期核心，无 CSR |
+| `rv32e-csr` | RV32E + Zicsr | 1 | 增加 CSR 模块，支持 ecall/ebreak/mret |
+| `R1322IAe` | RV32E | 2 (同构双发射) | 双发射单周期核心 |
+| `R1322IAe-csr` | RV32E + Zicsr | 2 (同构双发射) | 双发射 + CSR |
+| `R1322VA` | RV32E 变体 | — | 独立的 PPU / GRF 模块 |
+| `minirv` | RV32I | 1 | 早期版本 |
+| `scpu` | — | — | Verilog 简单核心 |
 
-| 外设       | 端口名需包含 | 方向      | 说明                                                                 |
-|------------|--------------|-----------|----------------------------------------------------------------------|
-| LED        | `led`        | output    | 宽度 1~16，从 LD0 开始依次分配                                       |
-| 开关       | `sw`         | input     | 宽度 1~16，从 SW0 开始依次分配                                       |
-| 数码管     | `seg`        | output    | 每个 `seg0` ~ `seg7` 独立，每个端口宽度 ≤ 8，使用固定引脚            |
+## 快速开始
 
-- 不区分大小写（`LED`、`Led`、`led` 均可识别）。
-- 时钟端口请命名为 `clock` 或 `clk`。
-- 复位端口请命名为 `reset`、`rst` 或 `resetn`（低有效请自行处理逻辑）。
-
-## 常用命令
-
-所有命令在项目根目录执行。
-
-1. Chisel 生成 Verilog
+### 1. 部署核心 & 生成 Verilog
 
 ```bash
-make genv          # 编译 Chisel 并生成 verilog/ 文件夹
-make test          # 运行 Chisel 测试（若工程中定义了测试）
-make rebuild       # 清理后重新生成
-make clean-chisel  # 仅清理 Chisel 生成物
+# 部署指定核心到 MyChisel/src/main/，并生成 Verilog
+make deploy-core core=rv32e-csr
+make genv
+```
 
-2. NVBoard 仿真
-bash
-make all                   # 生成 Verilog → 复制到 vsrc → 自动绑定 → 启动仿真
-make run-nvboard           # 仅启动仿真（前提：verilog/ 已生成，vsrc/ 已准备好）
-make build-nvboard         # 仅构建 NVBoard 工程，不运行
-make clean-nvboard         # 清理 NVBoard 的 build/ 目录
+`make genv` 等价于在 `MyChisel/` 下执行 `sbt run`，生成的 `.sv` 文件输出到 `MyChisel/verilog/`。
 
-3. 指令集模拟器（ISA Emu）
-使用变量 ISA_EMU_DIR 指定模拟器子目录（默认 scpu）。
-修改运行程序：编辑 Makefile 中的 PATH1、PATH2 变量。
+### 2. NPC 仿真（Verilator）
 
-bash
-make emu          # 编译并运行模拟器（使用 PATH1/PATH2 指定的内存镜像）
-make run-emu      # 同 emu
-make test-emu     # 仅运行单元测试
-make clean-emu    # 清理编译产物
-示例（使用 minirv 模拟器）：
+需要先安装 Verilator 5.0+。三种仿真模式：
 
-bash
-make emu ISA_EMU_DIR=minirv PATH1=path/to/rom.bin PATH2=path/to/ram.bin
+| sim 参数 | 功能 | 使用的 cpp 文件 |
+|----------|------|----------------|
+| `no` | 基础仿真，无附加依赖 | `sim_main_io.cpp` |
+| `sdb` | 带 Capstone 反汇编 | `sim_main_io_sdb.cpp` |
+| `diff` | 带 Capstone + NEMU diff 对比 | `sim_main_io_sdb_diff.cpp` |
 
-4. 综合与时序分析（Yosys‑STA）
-bash
-make yosys-init     # 首次使用：下载脚本，克隆 PDK
-make yosys-syn      # 逻辑综合，生成网表到 yosys-sta/result/
-make yosys-sta      # 静态时序分析，生成时序和功耗报告
-make yosys-clean    # 清理 yosys-sta 生成的结果
-修改时钟频率：make yosys-sta CLK_FREQ_MHZ=600
+```bash
+# 基础仿真
+make npc core=rv32e-csr sim=no
 
-修改顶层时钟端口名（默认 clock）：编辑 yosys-sta/Makefile 中的 CLK_PORT_NAME。
+# 带 sdb 仿真
+make npc core=rv32e-csr sim=sdb
 
-结果位置：
+# 带 diff 仿真（同时对比 NEMU 执行结果）
+make npc core=rv32e-csr sim=diff
+```
 
-网表：yosys-sta/result/top-500MHz/top.netlist.v
+构建完成后，可执行文件位于 `cpu-core/<core>/npc-core/` 下：
 
-时序报告：yosys-sta/result/top-500MHz/top.rpt
+```bash
+cpu-core/rv32e-csr/npc-core/npc        # 执行
+cpu-core/rv32e-csr/npc-core/npc-sdb    # 带 sdb 执行
+cpu-core/rv32e-csr/npc-core/npc-diff   # 带 diff 执行
+```
 
-功耗报告：yosys-sta/result/top-500MHz/sta.log
+### 3. NVBoard 仿真
 
-5. NPC 模拟器（Verilator 仿真）
-生成三种不同功能的模拟器，输出到 temper_npc/npc（可执行文件）。
+```bash
+# 一步完成：genv → 复制到 vsrc → sv2v 转换 → 启动 NVBoard 仿真
+make all
 
-bash
-make npc          # 基础版本（使用 sim_main_io.cpp，无 Capstone/NEMU）
-make npc-sdb      # 带 Capstone 反汇编（sim_main_io_sdb.cpp）
-make npc-diff     # 带 Capstone + NEMU 动态库（sim_main_io_sdb_diff.cpp）
-make clean-npc    # 清理 temper_npc/ 目录
-CAP_DIR、NEMU_INC、NEMU_LIB 可在 Makefile 头部或命令行覆盖。
+# 或分步执行
+make genv
+make prepare-vsrc      # 复制 Verilog + sv2v + 生成 top.nxdc
+make run-nvboard        # 仅运行
+```
 
-npc-diff 链接 NEMU 动态库，用于对比测试。
+### 4. ISA 模拟器
 
-6. 部署 CPU 核心（切换 Chisel 源码）
-将 cpu-core/ 下的某个核心文件夹（如 minirv）整体复制到 MyChisel/src/main，并替换原有内容。
+```bash
+make emu                    # 使用默认 scpu 模拟器
+make emu ISA_EMU_DIR=minirv # 使用 minirv 模拟器
+```
 
-bash
-make deploy-core core=minirv
-执行后请重新运行 make genv 生成新的 Verilog。
+### 5. Yosys 综合与时序分析
 
-常见问题
-NVBoard 窗口闪退：检查 Verilog 中 clock/reset 是否正确连接，是否存在组合逻辑环。
+```bash
+make yosys-init            # 首次使用：下载 iEDA 和 PDK
+make yosys-syn             # 逻辑综合，生成网表
+make yosys-sta              # 静态时序 + 功耗分析
+make yosys-sta CLK_FREQ_MHZ=600  # 自定义频率
+```
 
-未识别到 led/sw/seg 信号：顶层端口命名不符合规则，请按表修改端口名。
+结果输出到 `yosys-sta/result/top-500MHz/`。
 
-模拟器报“打开 ROM 文件失败”：确保 PATH1/PATH2 指向存在的二进制文件。
+## 编写新的 Chisel 电路
 
-Yosys‑STA 报 get_ports clk not found：确认 CLK_PORT_NAME 与实际时钟端口名一致（如 clock 或 io_clk）。
+1. 在 `cpu-core/<your_core>/scala/` 下编写 `.scala` 文件，顶层模块命名为 `top`
+2. 将 C++ 仿真文件放入 `cpu-core/<your_core>/cppfile/`
+3. DPI 相关资源放入 `cpu-core/<your_core>/resources/`
+4. 使用 `make deploy-core core=<your_core>` 部署
+5. 使用 `make genv` 生成 Verilog
 
-make npc-diff 找不到 C++ 文件：确认 MyChisel/src/main/cppfile/ 下存在 sim_main_io_sdb_diff.cpp，文件名与 Makefile 中的一致。
+## 环境依赖
 
-deploy-core 提示目录不存在：请确认 cpu-core/ 下存在指定的子文件夹，且名字拼写正确。
+| 工具 | 版本要求 | 用途 |
+|------|---------|------|
+| JDK | 11+ | sbt 运行（Chisel 编译） |
+| sbt | — | Chisel 构建 |
+| Verilator | 5.0+ | NPC Verilog 仿真 |
+| Yosys | 0.48+ | 逻辑综合 |
+| Capstone | — | sdb / diff 模式反汇编 |
+| NEMU | — | diff 模式对比参考（需 .so 文件） |
+| Python 3 | — | autonv.py（PyYAML） |
+| NVBoard | — | FPGA 仿真（需设 NVBOARD_HOME） |
 
-编写新的 Chisel 电路
-将 .scala 文件放入 MyChisel/src/main/scala/。
+## 常用命令速查
 
-确保顶层模块名为 top（生成 Verilog 时会自动作为顶层）。
+```bash
+# Chisel
+make genv                 # Chisel → Verilog
+make rebuild              # clean + genv
+make clean-chisel         # 清理 Chisel 产物
 
-在项目根目录执行 make genv 生成 Verilog。
+# 核心部署
+make deploy-core core=rv32e-csr
 
-根据需要运行 make all（NVBoard 仿真）或 make npc（Verilator 仿真）。
+# NPC 仿真
+make npc core=rv32e-csr sim=sdb
+make clean-npc
 
-环境依赖
-JDK 11 或更高版本（sbt 运行需要）
+# NVBoard
+make all
+make run-nvboard
 
-sbt
+# Yosys-STA
+make yosys-init
+make yosys-sta
 
-Verilator 5.0 或更高（用于 NPC）
+# ISA Sim
+make emu
+make clean-emu
+```
 
-Capstone 库（用于 npc-sdb/npc-diff）
+## 常见问题
 
-NEMU 动态库（仅 npc-diff 需要）
-
-Python 3 + PyYAML（用于 autonv.py）
-
-NVBoard 已正确配置（环境变量 NVBOARD_HOME）
+- **NVBoard 窗口闪退**：检查 Verilog 中 clock/reset 信号是否正确连接，是否存在组合逻辑环。
+- **未识别到 led/sw/seg 信号**：顶层端口命名须包含对应关键字（如 `led`、`sw`、`seg`），不区分大小写。
+- **`make deploy-core` 报目录不存在**：确认 `cpu-core/<核心名>` 文件夹存在且拼写正确。
+- **`make npc` 报找不到 cppfile**：确认核心的 cppfile 目录下有对应的 `sim_main_io*.cpp` 文件。
+- **Yosys-STA 报找不到 clk**：确认 `CLK_PORT_NAME` 与实际时钟端口名一致，默认为 `clock`。
+- **`make npc-diff` 找不到 NEMU**：确认 `nemu-so/riscv32-nemu-interpreter-so` 文件存在。

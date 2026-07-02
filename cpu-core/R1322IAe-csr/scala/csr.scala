@@ -51,15 +51,24 @@ class CSR extends Module {
     val take_trap  = Output(Bool())
     val trap_pc    = Output(UInt(32.W))
 
-    // 指令退休计数使能
-    val inst_retire = Input(Bool())
+    // 指令退休计数（0~2，支持双发射）
+    val inst_retire = Input(UInt(2.W))
 
-    // 调试输出
-    val debug_mcycle  = Output(UInt(64.W))
+    // 调试输出：所有可读 CSR 寄存器
+    val debug_mcycle   = Output(UInt(64.W))
     val debug_minstret = Output(UInt(64.W))
-    val debug_mstatus = Output(UInt(32.W))
-    val debug_mcause  = Output(UInt(32.W))
-    val debug_mepc    = Output(UInt(32.W))
+    val debug_mstatus  = Output(UInt(32.W))
+    val debug_mie      = Output(UInt(32.W))
+    val debug_mtvec    = Output(UInt(32.W))
+    val debug_mepc     = Output(UInt(32.W))
+    val debug_mcause   = Output(UInt(32.W))
+    val debug_mtval    = Output(UInt(32.W))
+    val debug_mip      = Output(UInt(32.W))
+    val debug_mscratch = Output(UInt(32.W))
+    val debug_mvendorid = Output(UInt(32.W))
+    val debug_marchid   = Output(UInt(32.W))
+    val debug_mimpid    = Output(UInt(32.W))
+    val debug_mhartid   = Output(UInt(32.W))
   })
 
   // ============== CSR 寄存器 ==============
@@ -73,11 +82,9 @@ class CSR extends Module {
   val mcycle_reg = RegInit(0.U(64.W))
   mcycle_reg := mcycle_reg + 1.U
 
-  // minstret: 指令退休计数器
+  // minstret: 指令退休计数器（支持双发射，每周期最多+2）
   val minstret_reg = RegInit(0.U(64.W))
-  when (io.inst_retire) {
-    minstret_reg := minstret_reg + 1.U
-  }
+  minstret_reg := minstret_reg + io.inst_retire
 
   // mstatus: 机器状态寄存器, MPP 字段 [12:11] 初始化为 M-mode (11)
   val mstatus_reg = RegInit(0x00001800L.U(32.W))
@@ -158,7 +165,7 @@ class CSR extends Module {
   // mepc 设为 ecall 本身，trap.S 中的 addi t2,t2,4 负责跳过 ecall
   when (io.ecall) {
     mepc_reg  := io.current_pc
-    mcause_reg := 11.U(32.W)  // ECALL from M-mode
+    mcause_reg := 8.U(32.W)   // ECALL exception (matches NEMU)
     mtval_reg  := 0.U(32.W)
     take_trap_wire := true.B
   }
@@ -178,6 +185,15 @@ class CSR extends Module {
   io.debug_mcycle   := mcycle_reg
   io.debug_minstret := minstret_reg
   io.debug_mstatus  := mstatus_reg
-  io.debug_mcause   := mcause_reg
+  io.debug_mie      := mie_reg
+  io.debug_mtvec    := mtvec_reg
   io.debug_mepc     := mepc_reg
+  io.debug_mcause   := mcause_reg
+  io.debug_mtval    := mtval_reg
+  io.debug_mip      := mip_reg
+  io.debug_mscratch := 0.U(32.W)    // mscratch not implemented
+  io.debug_mvendorid := mvendorid
+  io.debug_marchid   := marchid
+  io.debug_mimpid    := mimpid
+  io.debug_mhartid   := mhartid
 }

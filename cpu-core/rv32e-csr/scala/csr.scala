@@ -54,12 +54,21 @@ class CSR extends Module {
     // 指令退休计数使能
     val inst_retire = Input(Bool())
 
-    // 调试输出
-    val debug_mcycle  = Output(UInt(64.W))
+    // 调试输出：所有可读 CSR 寄存器
+    val debug_mcycle   = Output(UInt(64.W))
     val debug_minstret = Output(UInt(64.W))
-    val debug_mstatus = Output(UInt(32.W))
-    val debug_mcause  = Output(UInt(32.W))
-    val debug_mepc    = Output(UInt(32.W))
+    val debug_mstatus  = Output(UInt(32.W))
+    val debug_mie      = Output(UInt(32.W))
+    val debug_mtvec    = Output(UInt(32.W))
+    val debug_mepc     = Output(UInt(32.W))
+    val debug_mcause   = Output(UInt(32.W))
+    val debug_mtval    = Output(UInt(32.W))
+    val debug_mip      = Output(UInt(32.W))
+    val debug_mscratch = Output(UInt(32.W))
+    val debug_mvendorid = Output(UInt(32.W))
+    val debug_marchid   = Output(UInt(32.W))
+    val debug_mimpid    = Output(UInt(32.W))
+    val debug_mhartid   = Output(UInt(32.W))
   })
 
   // ============== CSR 寄存器 ==============
@@ -178,6 +187,15 @@ class CSR extends Module {
   io.debug_mcycle   := mcycle_reg
   io.debug_minstret := minstret_reg
   io.debug_mstatus  := mstatus_reg
-  io.debug_mcause   := mcause_reg
+  io.debug_mie      := mie_reg
+  io.debug_mtvec    := mtvec_reg
   io.debug_mepc     := mepc_reg
+  io.debug_mcause   := mcause_reg
+  io.debug_mtval    := mtval_reg
+  io.debug_mip      := mip_reg
+  io.debug_mscratch := 0.U(32.W)    // mscratch not implemented
+  io.debug_mvendorid := mvendorid
+  io.debug_marchid   := marchid
+  io.debug_mimpid    := mimpid
+  io.debug_mhartid   := mhartid
 }
