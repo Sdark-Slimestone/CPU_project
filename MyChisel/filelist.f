@@ -3,11 +3,11 @@ InstructionDecoder.sv
 InformationDecoder.sv
 decoder.sv
 idu.sv
+CSR.sv
 EXU.sv
 LSU.sv
 wbu.sv
 GRF.sv
-CSR.sv
 imem.sv
 dmem.sv
 top.sv

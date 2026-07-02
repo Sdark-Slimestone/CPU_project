@@ -75,10 +75,6 @@ module top(
   wire [31:0] _dmem_io_dmem_to_lsu_2_load_data;
   wire [31:0] _imem_io_imem_to_ifu_inst1;
   wire [31:0] _imem_io_imem_to_ifu_inst2;
-  wire [31:0] _csr_io_csr_rdata;
-  wire        _csr_io_take_trap;
-  wire [31:0] _csr_io_trap_pc;
-  wire [31:0] _csr_io_debug_mepc;
   wire [31:0] _grf_io_grf_to_idu_dec1_value_inst1rs1_value;
   wire [31:0] _grf_io_grf_to_idu_dec1_value_inst1rs2_value;
   wire [31:0] _grf_io_grf_to_idu_dec2_value_inst2rs1_value;
@@ -133,6 +129,13 @@ module top(
   wire [31:0] _exu1_io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data;
   wire        _exu1_io_exu_to_ifu_take_branch;
   wire [31:0] _exu1_io_exu_to_ifu_branch_target;
+  wire        _exu1_io_csr_to_ifu_take_trap;
+  wire [31:0] _exu1_io_csr_to_ifu_trap_pc;
+  wire        _exu1_io_csr_to_ifu_take_mret;
+  wire [31:0] _exu1_io_csr_to_ifu_mret_pc;
+  wire        _exu1_io_csr_to_grf_wen;
+  wire [4:0]  _exu1_io_csr_to_grf_waddr;
+  wire [31:0] _exu1_io_csr_to_grf_wdata;
   wire [4:0]  _idu_io_idu_to_grf_dec1_redreg_rs1;
   wire [4:0]  _idu_io_idu_to_grf_dec1_redreg_rs2;
   wire [4:0]  _idu_io_idu_to_grf_dec2_redreg_rs1;
@@ -243,10 +246,6 @@ module top(
   wire [31:0] _ifu_io_ifu_to_idu_inst1_pc;
   wire [31:0] _ifu_io_ifu_to_idu_inst1_nextpc;
   wire [31:0] _ifu_io_ifu_to_idu_inst2_nextpc;
-  wire        _is_csr_T = _idu_io_idu_to_top_is_csrrw | _idu_io_idu_to_top_is_csrrs;
-  wire        use_imm_csr =
-    _idu_io_idu_to_top_is_csrrwi | _idu_io_idu_to_top_is_csrrsi
-    | _idu_io_idu_to_top_is_csrrci;
   IFU ifu (
     .clock                       (clock),
     .reset                       (reset),
@@ -257,10 +256,10 @@ module top(
          ? _exu1_io_exu_to_ifu_branch_target
          : _exu2_io_exu_to_ifu_branch_target),
     .io_idu_to_ifu_is_stall      (_idu_io_idu_to_ifu_is_stall),
-    .io_csr_to_ifu_take_trap     (_csr_io_take_trap),
-    .io_csr_to_ifu_trap_pc       (_csr_io_trap_pc),
-    .io_csr_to_ifu_take_mret     (_idu_io_idu_to_top_is_mret),
-    .io_csr_to_ifu_mret_pc       (_csr_io_debug_mepc),
+    .io_csr_to_ifu_take_trap     (_exu1_io_csr_to_ifu_take_trap),
+    .io_csr_to_ifu_trap_pc       (_exu1_io_csr_to_ifu_trap_pc),
+    .io_csr_to_ifu_take_mret     (_exu1_io_csr_to_ifu_take_mret),
+    .io_csr_to_ifu_mret_pc       (_exu1_io_csr_to_ifu_mret_pc),
     .io_ifu_to_imem_addr1        (_ifu_io_ifu_to_imem_addr1),
     .io_ifu_to_imem_addr2        (_ifu_io_ifu_to_imem_addr2),
     .io_imem_to_ifu_inst1        (_imem_io_imem_to_ifu_inst1),
@@ -395,6 +394,8 @@ module top(
     .io_idu_debug_is_stall                   (io_debug_stall)
   );
   EXU exu1 (
+    .clock                                            (clock),
+    .reset                                            (reset),
     .io_idu_to_exu1_dec1_op_is_lui
       (_idu_io_idu_to_exu1_dec1_op_is_lui),
     .io_idu_to_exu1_dec1_op_is_auipc
@@ -472,6 +473,19 @@ module top(
     .io_idu_to_exu1_dec1_val_nextpc
       (_idu_io_idu_to_exu1_dec1_val_nextpc),
     .io_idu_to_exu1_dec1_rd                           (_idu_io_idu_to_exu1_dec1_rd),
+    .io_idu_csr_is_csrrw                              (_idu_io_idu_to_top_is_csrrw),
+    .io_idu_csr_is_csrrs                              (_idu_io_idu_to_top_is_csrrs),
+    .io_idu_csr_is_csrrc                              (_idu_io_idu_to_top_is_csrrc),
+    .io_idu_csr_is_csrrwi                             (_idu_io_idu_to_top_is_csrrwi),
+    .io_idu_csr_is_csrrsi                             (_idu_io_idu_to_top_is_csrrsi),
+    .io_idu_csr_is_csrrci                             (_idu_io_idu_to_top_is_csrrci),
+    .io_idu_csr_is_ecall                              (_idu_io_idu_to_top_is_ecall),
+    .io_idu_csr_is_mret                               (_idu_io_idu_to_top_is_mret),
+    .io_idu_csr_is_ebreak                             (_idu_io_idu_to_top_is_ebreak),
+    .io_idu_csr_inst1_pc                              (_idu_io_idu_to_top_inst1_pc),
+    .io_idu_csr_inst1                                 (_idu_io_idu_to_top_inst1),
+    .io_idu_csr_rs1_val                               (_idu_io_idu_to_top_rs1_val),
+    .io_is_stall                                      (_idu_io_idu_to_ifu_is_stall),
     .io_exu_to_lsu_op_is_lb                           (_exu1_io_exu_to_lsu_op_is_lb),
     .io_exu_to_lsu_op_is_lh                           (_exu1_io_exu_to_lsu_op_is_lh),
     .io_exu_to_lsu_op_is_lw                           (_exu1_io_exu_to_lsu_op_is_lw),
@@ -490,12 +504,30 @@ module top(
       (_exu1_io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data),
     .io_exu_to_ifu_take_branch                        (_exu1_io_exu_to_ifu_take_branch),
     .io_exu_to_ifu_branch_target                      (_exu1_io_exu_to_ifu_branch_target),
+    .io_csr_to_ifu_take_trap                          (_exu1_io_csr_to_ifu_take_trap),
+    .io_csr_to_ifu_trap_pc                            (_exu1_io_csr_to_ifu_trap_pc),
+    .io_csr_to_ifu_take_mret                          (_exu1_io_csr_to_ifu_take_mret),
+    .io_csr_to_ifu_mret_pc                            (_exu1_io_csr_to_ifu_mret_pc),
+    .io_csr_to_grf_wen                                (_exu1_io_csr_to_grf_wen),
+    .io_csr_to_grf_waddr                              (_exu1_io_csr_to_grf_waddr),
+    .io_csr_to_grf_wdata                              (_exu1_io_csr_to_grf_wdata),
+    .io_debug_csr_mcycle                              (io_debug_mcycle),
+    .io_debug_csr_minstret                            (io_debug_minstret),
+    .io_debug_csr_mstatus                             (io_debug_mstatus),
+    .io_debug_csr_mie                                 (io_debug_mie),
+    .io_debug_csr_mtvec                               (io_debug_mtvec),
+    .io_debug_csr_mepc                                (io_debug_mepc),
+    .io_debug_csr_mcause                              (io_debug_mcause),
+    .io_debug_csr_mtval                               (io_debug_mtval),
+    .io_debug_csr_mip                                 (io_debug_mip),
     .io_debug_alu_out                                 (io_debug_exu1_alu_out),
     .io_debug_alu_source1                             (io_debug_exu1_alu_source1),
     .io_debug_alu_source2                             (io_debug_exu1_alu_source2),
     .io_debug_agu_out                                 (io_debug_exu1_agu_out)
   );
   EXU exu2 (
+    .clock                                            (clock),
+    .reset                                            (reset),
     .io_idu_to_exu1_dec1_op_is_lui
       (_idu_io_idu_to_exu2_dec2_op_is_lui),
     .io_idu_to_exu1_dec1_op_is_auipc
@@ -573,6 +605,19 @@ module top(
     .io_idu_to_exu1_dec1_val_nextpc
       (_idu_io_idu_to_exu2_dec2_val_nextpc),
     .io_idu_to_exu1_dec1_rd                           (_idu_io_idu_to_exu2_dec2_rd),
+    .io_idu_csr_is_csrrw                              (1'h0),
+    .io_idu_csr_is_csrrs                              (1'h0),
+    .io_idu_csr_is_csrrc                              (1'h0),
+    .io_idu_csr_is_csrrwi                             (1'h0),
+    .io_idu_csr_is_csrrsi                             (1'h0),
+    .io_idu_csr_is_csrrci                             (1'h0),
+    .io_idu_csr_is_ecall                              (1'h0),
+    .io_idu_csr_is_mret                               (1'h0),
+    .io_idu_csr_is_ebreak                             (1'h0),
+    .io_idu_csr_inst1_pc                              (32'h0),
+    .io_idu_csr_inst1                                 (32'h0),
+    .io_idu_csr_rs1_val                               (32'h0),
+    .io_is_stall                                      (1'h0),
     .io_exu_to_lsu_op_is_lb                           (_exu2_io_exu_to_lsu_op_is_lb),
     .io_exu_to_lsu_op_is_lh                           (_exu2_io_exu_to_lsu_op_is_lh),
     .io_exu_to_lsu_op_is_lw                           (_exu2_io_exu_to_lsu_op_is_lw),
@@ -591,6 +636,22 @@ module top(
       (_exu2_io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data),
     .io_exu_to_ifu_take_branch                        (_exu2_io_exu_to_ifu_take_branch),
     .io_exu_to_ifu_branch_target                      (_exu2_io_exu_to_ifu_branch_target),
+    .io_csr_to_ifu_take_trap                          (/* unused */),
+    .io_csr_to_ifu_trap_pc                            (/* unused */),
+    .io_csr_to_ifu_take_mret                          (/* unused */),
+    .io_csr_to_ifu_mret_pc                            (/* unused */),
+    .io_csr_to_grf_wen                                (/* unused */),
+    .io_csr_to_grf_waddr                              (/* unused */),
+    .io_csr_to_grf_wdata                              (/* unused */),
+    .io_debug_csr_mcycle                              (/* unused */),
+    .io_debug_csr_minstret                            (/* unused */),
+    .io_debug_csr_mstatus                             (/* unused */),
+    .io_debug_csr_mie                                 (/* unused */),
+    .io_debug_csr_mtvec                               (/* unused */),
+    .io_debug_csr_mepc                                (/* unused */),
+    .io_debug_csr_mcause                              (/* unused */),
+    .io_debug_csr_mtval                               (/* unused */),
+    .io_debug_csr_mip                                 (/* unused */),
     .io_debug_alu_out                                 (io_debug_exu2_alu_out),
     .io_debug_alu_source1                             (io_debug_exu2_alu_source1),
     .io_debug_alu_source2                             (io_debug_exu2_alu_source2),
@@ -700,12 +761,9 @@ module top(
     .io_wbu_to_grf_wr1_data                  (_wbu_io_wbu_to_grf_wr1_data),
     .io_wbu_to_grf_wr2_addr                  (_wbu_io_wbu_to_grf_wr2_addr),
     .io_wbu_to_grf_wr2_data                  (_wbu_io_wbu_to_grf_wr2_data),
-    .io_csr_to_grf_wen
-      ((_is_csr_T | _idu_io_idu_to_top_is_csrrc | _idu_io_idu_to_top_is_csrrwi
-        | _idu_io_idu_to_top_is_csrrsi | _idu_io_idu_to_top_is_csrrci)
-       & (|(_idu_io_idu_to_top_inst1[11:7]))),
-    .io_csr_to_grf_waddr                     (_idu_io_idu_to_top_inst1[11:7]),
-    .io_csr_to_grf_wdata                     (_csr_io_csr_rdata),
+    .io_csr_to_grf_wen                       (_exu1_io_csr_to_grf_wen),
+    .io_csr_to_grf_waddr                     (_exu1_io_csr_to_grf_waddr),
+    .io_csr_to_grf_wdata                     (_exu1_io_csr_to_grf_wdata),
     .io_debug_regs_0                         (io_debug_grf_regs_0),
     .io_debug_regs_1                         (io_debug_grf_regs_1),
     .io_debug_regs_2                         (io_debug_grf_regs_2),
@@ -725,44 +783,6 @@ module top(
     .io_debug_rden                           (io_debug_grf_rden),
     .io_debug_rdaddr                         (io_debug_grf_rdaddr),
     .io_debug_input                          (io_debug_grf_input)
-  );
-  CSR csr (
-    .clock             (clock),
-    .reset             (reset),
-    .io_csr_addr       (_idu_io_idu_to_top_inst1[31:20]),
-    .io_csr_rdata      (_csr_io_csr_rdata),
-    .io_csr_wen
-      ((_is_csr_T | _idu_io_idu_to_top_is_csrrc | _idu_io_idu_to_top_is_csrrwi
-        | _idu_io_idu_to_top_is_csrrsi | _idu_io_idu_to_top_is_csrrci)
-       & (_idu_io_idu_to_top_is_csrrw | _idu_io_idu_to_top_is_csrrwi
-          | (use_imm_csr
-               ? (|(_idu_io_idu_to_top_inst1[19:15]))
-               : (|(_idu_io_idu_to_top_inst1[19:15]))))),
-    .io_csr_waddr      (_idu_io_idu_to_top_inst1[31:20]),
-    .io_csr_op
-      (_idu_io_idu_to_top_is_csrrs | _idu_io_idu_to_top_is_csrrsi
-         ? 3'h1
-         : {1'h0, _idu_io_idu_to_top_is_csrrc | _idu_io_idu_to_top_is_csrrci, 1'h0}),
-    .io_rs1_val        (_idu_io_idu_to_top_rs1_val),
-    .io_use_imm        (use_imm_csr),
-    .io_ecall          (_idu_io_idu_to_top_is_ecall),
-    .io_is_ebreak      (_idu_io_idu_to_top_is_ebreak),
-    .io_current_pc     (_idu_io_idu_to_top_inst1_pc),
-    .io_take_trap      (_csr_io_take_trap),
-    .io_trap_pc        (_csr_io_trap_pc),
-    .io_inst_retire
-      (_idu_io_idu_to_top_is_ebreak | _idu_io_idu_to_top_is_ecall
-         ? 2'h0
-         : _idu_io_idu_to_ifu_is_stall ? 2'h1 : 2'h2),
-    .io_debug_mcycle   (io_debug_mcycle),
-    .io_debug_minstret (io_debug_minstret),
-    .io_debug_mstatus  (io_debug_mstatus),
-    .io_debug_mie      (io_debug_mie),
-    .io_debug_mtvec    (io_debug_mtvec),
-    .io_debug_mepc     (_csr_io_debug_mepc),
-    .io_debug_mcause   (io_debug_mcause),
-    .io_debug_mtval    (io_debug_mtval),
-    .io_debug_mip      (io_debug_mip)
   );
   imem imem (
     .clock                (clock),
@@ -787,7 +807,6 @@ module top(
     .io_lsu_to_dmem_2_ren        (_lsu2_io_lsu_to_dmem_ren),
     .io_ebreak                   (_lsu1_io_ebreak_out | _lsu2_io_ebreak_out)
   );
-  assign io_debug_mepc = _csr_io_debug_mepc;
   assign io_debug_mscratch = 32'h0;
   assign io_debug_mvendorid = 32'h79737978;
   assign io_debug_marchid = 32'h18A9E3B;

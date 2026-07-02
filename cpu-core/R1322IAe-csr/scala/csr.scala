@@ -24,128 +24,110 @@ object CSRAddr {
   val mhartid   = 0xF14.U(12.W)
 }
 
-// CSR 文件模块
+// CSR 文件模块，接口采用 a_to_b / b_to_a 风格
 class CSR extends Module {
   val io = IO(new Bundle {
-    // 读取接口
-    val csr_addr   = Input(UInt(12.W))
-    val csr_rdata  = Output(UInt(32.W))
+    val exu_to_csr = new Bundle {
+      // 读/写接口
+      val addr      = Input(UInt(12.W))
+      val wen       = Input(Bool())
+      val waddr     = Input(UInt(12.W))
+      val wdata     = Input(UInt(32.W))
+      // CSR 操作类型
+      val op        = Input(UInt(3.W))  // 0=csrrw, 1=csrrs, 2=csrrc
+      val rs1_val   = Input(UInt(32.W))
+      val use_imm   = Input(Bool())     // true: 用 uimm[4:0] 代替 rs1
+      // 异常/中断
+      val ecall     = Input(Bool())
+      val mret      = Input(Bool())
+      val is_ebreak = Input(Bool())
+      val current_pc = Input(UInt(32.W))
+      // 指令退休计数
+      val inst_retire = Input(UInt(2.W))
+    }
 
-    // 写入接口
-    val csr_wen    = Input(Bool())
-    val csr_waddr  = Input(UInt(12.W))
-    val csr_wdata  = Input(UInt(32.W))
-
-    // CSR 操作类型
-    val csr_op     = Input(UInt(3.W))  // 0=csrrw, 1=csrrs, 2=csrrc
-    val rs1_val    = Input(UInt(32.W))
-    val use_imm    = Input(Bool())     // true: 用 uimm[4:0] 代替 rs1
-
-    // 异常接口
-    val ecall      = Input(Bool())
-    val mret       = Input(Bool())
-    val is_ebreak  = Input(Bool())
-    val current_pc = Input(UInt(32.W))
-
-    // 异常输出
-    val take_trap  = Output(Bool())
-    val trap_pc    = Output(UInt(32.W))
-
-    // 指令退休计数（0~2，支持双发射）
-    val inst_retire = Input(UInt(2.W))
-
-    // 调试输出：所有可读 CSR 寄存器
-    val debug_mcycle   = Output(UInt(64.W))
-    val debug_minstret = Output(UInt(64.W))
-    val debug_mstatus  = Output(UInt(32.W))
-    val debug_mie      = Output(UInt(32.W))
-    val debug_mtvec    = Output(UInt(32.W))
-    val debug_mepc     = Output(UInt(32.W))
-    val debug_mcause   = Output(UInt(32.W))
-    val debug_mtval    = Output(UInt(32.W))
-    val debug_mip      = Output(UInt(32.W))
-    val debug_mscratch = Output(UInt(32.W))
-    val debug_mvendorid = Output(UInt(32.W))
-    val debug_marchid   = Output(UInt(32.W))
-    val debug_mimpid    = Output(UInt(32.W))
-    val debug_mhartid   = Output(UInt(32.W))
+    val csr_to_exu = new Bundle {
+      // 读数据
+      val rdata    = Output(UInt(32.W))
+      // 异常输出
+      val take_trap = Output(Bool())
+      val trap_pc   = Output(UInt(32.W))
+      // 调试输出：所有可读 CSR 寄存器
+      val debug_mcycle    = Output(UInt(64.W))
+      val debug_minstret  = Output(UInt(64.W))
+      val debug_mstatus   = Output(UInt(32.W))
+      val debug_mie       = Output(UInt(32.W))
+      val debug_mtvec     = Output(UInt(32.W))
+      val debug_mepc      = Output(UInt(32.W))
+      val debug_mcause    = Output(UInt(32.W))
+      val debug_mtval     = Output(UInt(32.W))
+      val debug_mip       = Output(UInt(32.W))
+      val debug_mscratch  = Output(UInt(32.W))
+      val debug_mvendorid = Output(UInt(32.W))
+      val debug_marchid   = Output(UInt(32.W))
+      val debug_mimpid    = Output(UInt(32.W))
+      val debug_mhartid   = Output(UInt(32.W))
+    }
   })
 
   // ============== CSR 寄存器 ==============
-  // 只读寄存器: mvendorid = "ysyx", marchid = 26030107
   val mvendorid = 0x79737978L.U(32.W)
   val marchid   = 0x018A9E3B.U(32.W)
   val mimpid    = 0.U(32.W)
   val mhartid   = 0.U(32.W)
 
-  // mcycle: 每周期加1的64位计数器
   val mcycle_reg = RegInit(0.U(64.W))
   mcycle_reg := mcycle_reg + 1.U
 
-  // minstret: 指令退休计数器（支持双发射，每周期最多+2）
   val minstret_reg = RegInit(0.U(64.W))
-  minstret_reg := minstret_reg + io.inst_retire
+  minstret_reg := minstret_reg + io.exu_to_csr.inst_retire
 
-  // mstatus: 机器状态寄存器, MPP 字段 [12:11] 初始化为 M-mode (11)
   val mstatus_reg = RegInit(0x00001800L.U(32.W))
+  val mtvec_reg   = RegInit(0.U(32.W))
+  val mepc_reg    = RegInit(0.U(32.W))
+  val mcause_reg  = RegInit(0.U(32.W))
+  val mtval_reg   = RegInit(0.U(32.W))
+  val mie_reg     = RegInit(0.U(32.W))
+  val mip_reg     = RegInit(0.U(32.W))
 
-  // mtvec: 异常入口基址
-  val mtvec_reg = RegInit(0.U(32.W))
+  // ============== 读逻辑 ==============
+  val rdata_wire = Wire(UInt(32.W))
+  rdata_wire := 0.U(32.W)
 
-  // mepc: 异常 PC
-  val mepc_reg = RegInit(0.U(32.W))
-
-  // mcause: 异常原因
-  val mcause_reg = RegInit(0.U(32.W))
-
-  // mtval: 异常地址
-  val mtval_reg = RegInit(0.U(32.W))
-
-  // mie: 中断使能
-  val mie_reg = RegInit(0.U(32.W))
-
-  // mip: 中断待决
-  val mip_reg = RegInit(0.U(32.W))
-
-  // ============== CSR 读逻辑 ==============
-  val csr_rdata_wire = Wire(UInt(32.W))
-  csr_rdata_wire := 0.U(32.W)
-
-  switch (io.csr_addr) {
-    is (CSRAddr.mstatus)   { csr_rdata_wire := mstatus_reg }
-    is (CSRAddr.misa)      { csr_rdata_wire := 0.U(32.W) }
-    is (CSRAddr.mie)       { csr_rdata_wire := mie_reg }
-    is (CSRAddr.mtvec)     { csr_rdata_wire := mtvec_reg }
-    is (CSRAddr.mscratch)  { csr_rdata_wire := 0.U(32.W) }
-    is (CSRAddr.mepc)      { csr_rdata_wire := mepc_reg }
-    is (CSRAddr.mcause)    { csr_rdata_wire := mcause_reg }
-    is (CSRAddr.mtval)     { csr_rdata_wire := mtval_reg }
-    is (CSRAddr.mip)       { csr_rdata_wire := mip_reg }
-    is (CSRAddr.mcycle)    { csr_rdata_wire := mcycle_reg(31, 0) }
-    is (CSRAddr.mcycleh)   { csr_rdata_wire := mcycle_reg(63, 32) }
-    is (CSRAddr.minstret)  { csr_rdata_wire := minstret_reg(31, 0) }
-    is (CSRAddr.minstreth) { csr_rdata_wire := minstret_reg(63, 32) }
-    is (CSRAddr.mvendorid) { csr_rdata_wire := mvendorid }
-    is (CSRAddr.marchid)   { csr_rdata_wire := marchid }
-    is (CSRAddr.mimpid)    { csr_rdata_wire := mimpid }
-    is (CSRAddr.mhartid)   { csr_rdata_wire := mhartid }
+  switch (io.exu_to_csr.addr) {
+    is (CSRAddr.mstatus)   { rdata_wire := mstatus_reg }
+    is (CSRAddr.misa)      { rdata_wire := 0.U(32.W) }
+    is (CSRAddr.mie)       { rdata_wire := mie_reg }
+    is (CSRAddr.mtvec)     { rdata_wire := mtvec_reg }
+    is (CSRAddr.mscratch)  { rdata_wire := 0.U(32.W) }
+    is (CSRAddr.mepc)      { rdata_wire := mepc_reg }
+    is (CSRAddr.mcause)    { rdata_wire := mcause_reg }
+    is (CSRAddr.mtval)     { rdata_wire := mtval_reg }
+    is (CSRAddr.mip)       { rdata_wire := mip_reg }
+    is (CSRAddr.mcycle)    { rdata_wire := mcycle_reg(31, 0) }
+    is (CSRAddr.mcycleh)   { rdata_wire := mcycle_reg(63, 32) }
+    is (CSRAddr.minstret)  { rdata_wire := minstret_reg(31, 0) }
+    is (CSRAddr.minstreth) { rdata_wire := minstret_reg(63, 32) }
+    is (CSRAddr.mvendorid) { rdata_wire := mvendorid }
+    is (CSRAddr.marchid)   { rdata_wire := marchid }
+    is (CSRAddr.mimpid)    { rdata_wire := mimpid }
+    is (CSRAddr.mhartid)   { rdata_wire := mhartid }
   }
 
-  io.csr_rdata := csr_rdata_wire
+  io.csr_to_exu.rdata := rdata_wire
 
-  // ============== CSR 写逻辑 ==============
-  // 计算 CSR 写入值（支持 csrrw/csrrs/csrrc 原子操作）
+  // ============== 写逻辑 ==============
+  val t_rs1 = Mux(io.exu_to_csr.use_imm, Cat(0.U(27.W), io.exu_to_csr.rs1_val(4, 0)), io.exu_to_csr.rs1_val)
+
   val csr_write_val = Wire(UInt(32.W))
-  val t_rs1 = Mux(io.use_imm, Cat(0.U(27.W), io.rs1_val(4, 0)), io.rs1_val)
-
   csr_write_val := MuxCase(0.U(32.W), Seq(
-    (io.csr_op === 0.U) -> t_rs1,                     // csrrw: 直接写入 rs1
-    (io.csr_op === 1.U) -> (csr_rdata_wire | t_rs1),  // csrrs: 置位
-    (io.csr_op === 2.U) -> (csr_rdata_wire & ~t_rs1), // csrrc: 清除
+    (io.exu_to_csr.op === 0.U) -> t_rs1,
+    (io.exu_to_csr.op === 1.U) -> (rdata_wire | t_rs1),
+    (io.exu_to_csr.op === 2.U) -> (rdata_wire & ~t_rs1),
   ))
 
-  when (io.csr_wen) {
-    switch (io.csr_waddr) {
+  when (io.exu_to_csr.wen) {
+    switch (io.exu_to_csr.waddr) {
       is (CSRAddr.mstatus)   { mstatus_reg := csr_write_val }
       is (CSRAddr.mie)       { mie_reg := csr_write_val }
       is (CSRAddr.mtvec)     { mtvec_reg := csr_write_val }
@@ -161,39 +143,36 @@ class CSR extends Module {
   val take_trap_wire = Wire(Bool())
   take_trap_wire := false.B
 
-  // ecall: 触发环境调用异常
-  // mepc 设为 ecall 本身，trap.S 中的 addi t2,t2,4 负责跳过 ecall
-  when (io.ecall) {
-    mepc_reg  := io.current_pc
-    mcause_reg := 8.U(32.W)   // ECALL exception (matches NEMU)
+  when (io.exu_to_csr.ecall) {
+    mepc_reg  := io.exu_to_csr.current_pc
+    mcause_reg := 8.U(32.W)
     mtval_reg  := 0.U(32.W)
     take_trap_wire := true.B
   }
 
-  // ebreak: 触发断点异常
-  when (io.is_ebreak) {
-    mepc_reg  := io.current_pc
-    mcause_reg := 3.U(32.W)   // Breakpoint
-    mtval_reg  := io.current_pc
+  when (io.exu_to_csr.is_ebreak) {
+    mepc_reg  := io.exu_to_csr.current_pc
+    mcause_reg := 3.U(32.W)
+    mtval_reg  := io.exu_to_csr.current_pc
     take_trap_wire := true.B
   }
 
-  io.take_trap := take_trap_wire
-  io.trap_pc   := mtvec_reg
+  io.csr_to_exu.take_trap := take_trap_wire
+  io.csr_to_exu.trap_pc   := mtvec_reg
 
   // ============== 调试输出 ==============
-  io.debug_mcycle   := mcycle_reg
-  io.debug_minstret := minstret_reg
-  io.debug_mstatus  := mstatus_reg
-  io.debug_mie      := mie_reg
-  io.debug_mtvec    := mtvec_reg
-  io.debug_mepc     := mepc_reg
-  io.debug_mcause   := mcause_reg
-  io.debug_mtval    := mtval_reg
-  io.debug_mip      := mip_reg
-  io.debug_mscratch := 0.U(32.W)    // mscratch not implemented
-  io.debug_mvendorid := mvendorid
-  io.debug_marchid   := marchid
-  io.debug_mimpid    := mimpid
-  io.debug_mhartid   := mhartid
+  io.csr_to_exu.debug_mcycle    := mcycle_reg
+  io.csr_to_exu.debug_minstret  := minstret_reg
+  io.csr_to_exu.debug_mstatus   := mstatus_reg
+  io.csr_to_exu.debug_mie       := mie_reg
+  io.csr_to_exu.debug_mtvec     := mtvec_reg
+  io.csr_to_exu.debug_mepc      := mepc_reg
+  io.csr_to_exu.debug_mcause    := mcause_reg
+  io.csr_to_exu.debug_mtval     := mtval_reg
+  io.csr_to_exu.debug_mip       := mip_reg
+  io.csr_to_exu.debug_mscratch  := 0.U(32.W)
+  io.csr_to_exu.debug_mvendorid := mvendorid
+  io.csr_to_exu.debug_marchid   := marchid
+  io.csr_to_exu.debug_mimpid    := mimpid
+  io.csr_to_exu.debug_mhartid   := mhartid
 }

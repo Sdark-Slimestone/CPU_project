@@ -80,16 +80,16 @@ class top extends Module {
     val debug_grf_input  = Output(UInt(32.W))
 
     // ---------- CSR debug ----------
-    val debug_mcycle   = Output(UInt(64.W))
-    val debug_minstret = Output(UInt(64.W))
-    val debug_mstatus  = Output(UInt(32.W))
-    val debug_mie      = Output(UInt(32.W))
-    val debug_mtvec    = Output(UInt(32.W))
-    val debug_mepc     = Output(UInt(32.W))
-    val debug_mcause   = Output(UInt(32.W))
-    val debug_mtval    = Output(UInt(32.W))
-    val debug_mip      = Output(UInt(32.W))
-    val debug_mscratch = Output(UInt(32.W))
+    val debug_mcycle    = Output(UInt(64.W))
+    val debug_minstret  = Output(UInt(64.W))
+    val debug_mstatus   = Output(UInt(32.W))
+    val debug_mie       = Output(UInt(32.W))
+    val debug_mtvec     = Output(UInt(32.W))
+    val debug_mepc      = Output(UInt(32.W))
+    val debug_mcause    = Output(UInt(32.W))
+    val debug_mtval     = Output(UInt(32.W))
+    val debug_mip       = Output(UInt(32.W))
+    val debug_mscratch  = Output(UInt(32.W))
     val debug_mvendorid = Output(UInt(32.W))
     val debug_marchid   = Output(UInt(32.W))
     val debug_mimpid    = Output(UInt(32.W))
@@ -105,7 +105,6 @@ class top extends Module {
   val lsu2 = Module(new LSU)
   val wbu  = Module(new wbu)
   val grf  = Module(new GRF)
-  val csr  = Module(new CSR)
   val imem = Module(new imem)
   val dmem = Module(new dmem)
 
@@ -129,6 +128,48 @@ class top extends Module {
   exu2.io.idu_to_exu1.dec1_imm := idu.io.idu_to_exu2.dec2_imm
   exu2.io.idu_to_exu1.dec1_val := idu.io.idu_to_exu2.dec2_val
   exu2.io.idu_to_exu1.dec1_rd  := idu.io.idu_to_exu2.dec2_rd
+
+  // ===================== EXU CSR 输入（来自 IDU+IDU） =====================
+  // EXU1 接收第一条指令的 CSR 直通信号
+  exu1.io.idu_csr.is_csrrw  := idu.io.idu_to_top.is_csrrw
+  exu1.io.idu_csr.is_csrrs  := idu.io.idu_to_top.is_csrrs
+  exu1.io.idu_csr.is_csrrc  := idu.io.idu_to_top.is_csrrc
+  exu1.io.idu_csr.is_csrrwi := idu.io.idu_to_top.is_csrrwi
+  exu1.io.idu_csr.is_csrrsi := idu.io.idu_to_top.is_csrrsi
+  exu1.io.idu_csr.is_csrrci := idu.io.idu_to_top.is_csrrci
+  exu1.io.idu_csr.is_ecall  := idu.io.idu_to_top.is_ecall
+  exu1.io.idu_csr.is_mret   := idu.io.idu_to_top.is_mret
+  exu1.io.idu_csr.is_ebreak := idu.io.idu_to_top.is_ebreak
+  exu1.io.idu_csr.inst1_pc  := idu.io.idu_to_top.inst1_pc
+  exu1.io.idu_csr.inst1     := idu.io.idu_to_top.inst1
+  exu1.io.idu_csr.rs1_val   := idu.io.idu_to_top.rs1_val
+  exu1.io.is_stall          := idu.io.idu_to_ifu.is_stall
+
+  // EXU2 的 CSR 输入清零（CSR 只在第一条指令有效）
+  exu2.io.idu_csr.is_csrrw  := false.B
+  exu2.io.idu_csr.is_csrrs  := false.B
+  exu2.io.idu_csr.is_csrrc  := false.B
+  exu2.io.idu_csr.is_csrrwi := false.B
+  exu2.io.idu_csr.is_csrrsi := false.B
+  exu2.io.idu_csr.is_csrrci := false.B
+  exu2.io.idu_csr.is_ecall  := false.B
+  exu2.io.idu_csr.is_mret   := false.B
+  exu2.io.idu_csr.is_ebreak := false.B
+  exu2.io.idu_csr.inst1_pc  := 0.U
+  exu2.io.idu_csr.inst1     := 0.U
+  exu2.io.idu_csr.rs1_val   := 0.U
+  exu2.io.is_stall          := false.B
+
+  // ===================== IFU CSR 接口 =====================
+  ifu.io.csr_to_ifu.take_trap := exu1.io.csr_to_ifu.take_trap
+  ifu.io.csr_to_ifu.trap_pc   := exu1.io.csr_to_ifu.trap_pc
+  ifu.io.csr_to_ifu.take_mret := exu1.io.csr_to_ifu.take_mret
+  ifu.io.csr_to_ifu.mret_pc   := exu1.io.csr_to_ifu.mret_pc
+
+  // ===================== CSR 写回 GRF =====================
+  grf.io.csr_to_grf.wen   := exu1.io.csr_to_grf.wen
+  grf.io.csr_to_grf.waddr := exu1.io.csr_to_grf.waddr
+  grf.io.csr_to_grf.wdata := exu1.io.csr_to_grf.wdata
 
   // ===================== EXU1/2 → LSU1/2 =====================
   exu1.io.exu_to_lsu <> lsu1.io.exu_to_lsu
@@ -157,63 +198,6 @@ class top extends Module {
 
   // ===================== WBU → GRF =====================
   wbu.io.wbu_to_grf <> grf.io.wbu_to_grf
-
-  // ===================== IFU CSR 接口 =====================
-  ifu.io.csr_to_ifu.take_trap := csr.io.take_trap
-  ifu.io.csr_to_ifu.trap_pc   := csr.io.trap_pc
-  ifu.io.csr_to_ifu.take_mret := idu.io.idu_to_top.is_mret
-  ifu.io.csr_to_ifu.mret_pc   := csr.io.debug_mepc
-
-  // ===================== CSR 连接 =====================
-  val csr_addr = idu.io.idu_to_top.inst1(31, 20)
-  csr.io.csr_addr := csr_addr
-
-  // CSR 操作类型判断
-  val is_csr_write = idu.io.idu_to_top.is_csrrw || idu.io.idu_to_top.is_csrrs ||
-                     idu.io.idu_to_top.is_csrrc || idu.io.idu_to_top.is_csrrwi ||
-                     idu.io.idu_to_top.is_csrrsi || idu.io.idu_to_top.is_csrrci
-
-  // csr_op: 0=csrrw(写), 1=csrrs(置位), 2=csrrc(清除)
-  csr.io.csr_op := MuxCase(0.U(3.W), Seq(
-    (idu.io.idu_to_top.is_csrrs || idu.io.idu_to_top.is_csrrsi) -> 1.U,
-    (idu.io.idu_to_top.is_csrrc || idu.io.idu_to_top.is_csrrci) -> 2.U
-  ))
-
-  // CSR 写使能
-  val use_imm_csr = idu.io.idu_to_top.is_csrrwi || idu.io.idu_to_top.is_csrrsi || idu.io.idu_to_top.is_csrrci
-  val uimm = idu.io.idu_to_top.inst1(19, 15)
-  val rs1_csr_nonzero = idu.io.idu_to_top.inst1(19, 15) =/= 0.U
-  val uimm_nonzero = uimm =/= 0.U
-
-  csr.io.use_imm := use_imm_csr
-  csr.io.rs1_val := idu.io.idu_to_top.rs1_val
-
-  val csrrw_or_wi = idu.io.idu_to_top.is_csrrw || idu.io.idu_to_top.is_csrrwi
-  val csr_write_cond = Mux(csrrw_or_wi, true.B,
-                       Mux(use_imm_csr, uimm_nonzero, rs1_csr_nonzero))
-  csr.io.csr_wen := is_csr_write && csr_write_cond
-  csr.io.csr_waddr := csr_addr
-  csr.io.csr_wdata := Mux(use_imm_csr, Cat(0.U(27.W), uimm), idu.io.idu_to_top.rs1_val)
-
-  // 异常接口
-  csr.io.ecall      := idu.io.idu_to_top.is_ecall
-  csr.io.mret       := idu.io.idu_to_top.is_mret
-  csr.io.is_ebreak  := idu.io.idu_to_top.is_ebreak
-  csr.io.current_pc := idu.io.idu_to_top.inst1_pc
-
-  // 指令退休计数：正常才退休，stall则+1（单发射），双发射则+2
-  val inst_ok = !idu.io.idu_to_top.is_ebreak && !idu.io.idu_to_top.is_ecall
-  csr.io.inst_retire := Mux(inst_ok, Mux(idu.io.idu_to_ifu.is_stall, 1.U(2.W), 2.U(2.W)), 0.U(2.W))
-
-  // ===================== CSR 写回 GRF =====================
-  // CSR 指令写回旧CSR值到rd（顶层直接连接GRF）
-  val is_csr = idu.io.idu_to_top.is_csrrw || idu.io.idu_to_top.is_csrrs ||
-               idu.io.idu_to_top.is_csrrc || idu.io.idu_to_top.is_csrrwi ||
-               idu.io.idu_to_top.is_csrrsi || idu.io.idu_to_top.is_csrrci
-  val csr_rd = idu.io.idu_to_top.inst1(11, 7)
-  grf.io.csr_to_grf.wen   := is_csr && (csr_rd =/= 0.U)
-  grf.io.csr_to_grf.waddr := csr_rd
-  grf.io.csr_to_grf.wdata := csr.io.csr_rdata
 
   // ===================== 分支合并 =====================
   val exu1_valid = exu1.io.exu_to_ifu.take_branch
@@ -279,20 +263,20 @@ class top extends Module {
   io.debug_grf_input  := grf.io.debug_input
 
   // --- CSR ---
-  io.debug_mcycle    := csr.io.debug_mcycle
-  io.debug_minstret  := csr.io.debug_minstret
-  io.debug_mstatus   := csr.io.debug_mstatus
-  io.debug_mie       := csr.io.debug_mie
-  io.debug_mtvec     := csr.io.debug_mtvec
-  io.debug_mepc      := csr.io.debug_mepc
-  io.debug_mcause    := csr.io.debug_mcause
-  io.debug_mtval     := csr.io.debug_mtval
-  io.debug_mip       := csr.io.debug_mip
-  io.debug_mscratch  := csr.io.debug_mscratch
-  io.debug_mvendorid := csr.io.debug_mvendorid
-  io.debug_marchid   := csr.io.debug_marchid
-  io.debug_mimpid    := csr.io.debug_mimpid
-  io.debug_mhartid   := csr.io.debug_mhartid
+  io.debug_mcycle    := exu1.io.debug_csr.mcycle
+  io.debug_minstret  := exu1.io.debug_csr.minstret
+  io.debug_mstatus   := exu1.io.debug_csr.mstatus
+  io.debug_mie       := exu1.io.debug_csr.mie
+  io.debug_mtvec     := exu1.io.debug_csr.mtvec
+  io.debug_mepc      := exu1.io.debug_csr.mepc
+  io.debug_mcause    := exu1.io.debug_csr.mcause
+  io.debug_mtval     := exu1.io.debug_csr.mtval
+  io.debug_mip       := exu1.io.debug_csr.mip
+  io.debug_mscratch  := exu1.io.debug_csr.mscratch
+  io.debug_mvendorid := exu1.io.debug_csr.mvendorid
+  io.debug_marchid   := exu1.io.debug_csr.marchid
+  io.debug_mimpid    := exu1.io.debug_csr.mimpid
+  io.debug_mhartid   := exu1.io.debug_csr.mhartid
 }
 
 object top extends App {
