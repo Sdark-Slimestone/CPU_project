@@ -17,6 +17,11 @@ EXECUTABLE ?= $(ISA_EMU_DIR)
 
 .DEFAULT_GOAL := all
 
+# 初始化/依赖安装
+.PHONY: init
+init:
+	bash setup.sh
+
 # 代理 MyChisel 的目标
 .PHONY: genv test rebuild clean-chisel
 genv test rebuild:
