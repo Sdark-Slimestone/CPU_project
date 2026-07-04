@@ -8,6 +8,7 @@ SV2V := ./sv2v
 CHISEL_DIR = MyChisel
 NVBOARD_DIR = nvboard/myexample
 YOSYS_STA_DIR = yosys-sta
+EMU_BIN_DIR = emu-bin
 
 # 派生路径
 CHISEL_VERILOG_DIR = $(CHISEL_DIR)/verilog
@@ -104,7 +105,7 @@ prepare-sta-src: genv
 # 聚合目标
 .PHONY: all clean run
 all: genv prepare-vsrc run-nvboard yosys-sta
-clean: clean-chisel clean-nvboard yosys-clean clean-npc
+clean: clean-chisel clean-nvboard yosys-clean clean-npc clean-emubin
 run: run-nvboard
 
 # ISA 模拟器集成（分别作为独立程序运行，如 scpu, minirv）
@@ -133,6 +134,77 @@ emu-clean: check-emu
 emu-test: check-emu
 	$(MAKE) -C $(ISA_EMU_PATH) tests
 	rm -rf $(ISA_EMU_PATH)/bin
+
+# ========== ISA 模拟器可执行文件（emu）构建 ==========
+# 用法:
+#   make emu emu=rv32e    # 构建 rv32e-csr 为可执行文件
+#   make emu emu=minirv   # 构建 minirv 为可执行文件
+# 构建后可执行文件自动复制到 emu-bin/ 目录
+.PHONY: emu
+emu:
+	@emu_dir=""; \
+	case "$(emu)" in \
+		rv32e) emu_dir="rv32e-csr"; emu_name="rv32e-csr" ;; \
+		minirv) emu_dir="minirv"; emu_name="minirv" ;; \
+		scpu) emu_dir="scpu"; emu_name="scpu" ;; \
+		*) echo "错误：不支持的 emu \"$(emu)\" (支持: rv32e/minirv/scpu)"; exit 1 ;; \
+	esac; \
+	if [ ! -d "isa-emu/$$emu_dir" ]; then \
+		echo "错误：ISA 模拟器目录 isa-emu/$$emu_dir 不存在"; \
+		exit 1; \
+	fi; \
+	echo "=== 构建 emu: $$emu_name ==="; \
+	$(MAKE) -C isa-emu/$$emu_dir clean; \
+	$(MAKE) -C isa-emu/$$emu_dir $$emu_name; \
+	mkdir -p $(EMU_BIN_DIR); \
+	cp isa-emu/$$emu_dir/$$emu_name $(EMU_BIN_DIR)/$$emu_name; \
+	echo "=== 完成 ==="; \
+	echo "emu 可执行文件已构建: $(EMU_BIN_DIR)/$$emu_name"
+
+# emutest：运行 emu 可执行文件执行测试
+# 用法: make emutest emu=rv32e test=yield-os
+#       make emutest emu=rv32e test=microbench
+#       make emutest emu=rv32e test=alutest
+#       make emutest emu=rv32e test=rtthread
+.PHONY: emutest
+emutest:
+ifndef emu
+	$(error 错误：请指定 emu 变量，例如 make emutest emu=rv32e test=yield-os)
+endif
+ifndef test
+	$(error 错误：请指定 test 变量，例如 make emutest emu=rv32e test=yield-os)
+endif
+	@emu_name=""; \
+	case "$(emu)" in \
+		rv32e) emu_name="rv32e-csr" ;; \
+		minirv) emu_name="minirv" ;; \
+		scpu) emu_name="scpu" ;; \
+		*) echo "错误：不支持的 emu \"$(emu)\" (支持: rv32e/minirv/scpu)"; exit 1 ;; \
+	esac; \
+	emu_path="$(EMU_BIN_DIR)/$$emu_name"; \
+	test_path="test-benchmarks/$(test)/$(test)-riscv32e-npc.bin"; \
+	if [ ! -f "$$emu_path" ]; then \
+		echo "错误：emu 可执行文件 $$emu_path 不存在"; \
+		echo "请先执行 make emu emu=$(emu) 构建"; \
+		exit 1; \
+	fi; \
+	if [ ! -f "$$test_path" ]; then \
+		echo "错误：测试程序 $$test_path 不存在"; \
+		exit 1; \
+	fi; \
+	echo "=== 运行 emu: $(emu), 测试: $(test) ==="; \
+	echo "emu : $$emu_path"; \
+	echo "bin : $$test_path"; \
+	echo ""; \
+	$$emu_path $$test_path
+
+# 清理 emu-bin 目录
+.PHONY: clean-emubin
+clean-emubin:
+	@if [ -d "$(EMU_BIN_DIR)" ]; then \
+		echo "清理 $(EMU_BIN_DIR)/ ..."; \
+		rm -rf $(EMU_BIN_DIR); \
+	fi
 
 # yosys-sta 集成
 .PHONY: yosys-init yosys-syn yosys-sta yosys-clean
@@ -188,13 +260,13 @@ SIM_EXTRA_FLAGS_diff  = --CFLAGS "-I$(CAP_DIR)/include -I$(NEMU_INC)" \
 SIM_EXTRA_FLAGS_diff2 = --CFLAGS "-I$(CAP_DIR)/include" \
 	--LDFLAGS "-L$(CAP_DIR) -lcapstone -Wl,-rpath,$(CAP_DIR) -ldl"
 
-# ========== ISA 模拟器（emu）构建 ==========
+# ========== ISA 模拟器 .so 构建（emuso） ==========
 # 用法:
-#   make emu              # 构建默认 emu (rv32e-csr)
-#   make emu EMU_DIR=rv32e-csr   # 指定 emu 目录
+#   make emuso            # 构建默认 .so (rv32e-csr)
+#   make emuso emu=rv32e  # 指定 emu 目录
 # 构建后 .so 自动复制到 emu-so/ 目录供 npc 使用
-.PHONY: emu
-emu:
+.PHONY: emuso
+emuso:
 	@emu_dir="rv32e-csr"; \
 	if [ -n "$(emu)" ]; then \
 		case "$(emu)" in \
@@ -215,7 +287,7 @@ emu:
 	mkdir -p $$emu_out; \
 	cp isa-emu/$$emu_dir/build/$$emu_dir.so $$emu_out/$$emu_name.so; \
 	echo "=== 完成 ==="; \
-	echo "emu 已构建: $$emu_out/$$emu_name.so"
+	echo "emu .so 已构建: $$emu_out/$$emu_name.so"
 
 # 基础准备：复制 DPI 文件，依赖 genv 生成 Verilog
 .PHONY: prepare-npc

@@ -10,6 +10,8 @@
 
 void __EXPORT difftest_init() {
   cpu_reset();
+  // diff 模式下 emu 作为参考模型，串口输出由 NPC（DUT）负责，emu 静默
+  set_serial_silent(1);
 }
 
 void __EXPORT difftest_memcpy(uint32_t addr, void *buf, size_t n, bool direction) {

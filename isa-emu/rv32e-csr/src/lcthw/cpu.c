@@ -5,8 +5,15 @@
 
 uint8_t mem[MEM_SIZE];
 CPU_State cpu;
+static int serial_silent = 0;  // diff 模式时静默串口输出，避免和 NPC 抢终端
+
+// 设置串口静默标志（供 difftest 使用）
+void __attribute__((visibility("default"))) set_serial_silent(int silent) {
+  serial_silent = silent;
+}
 
 void cpu_reset(void) {
+  serial_silent = 0;  // 默认可输出
   memset(mem, 0, MEM_SIZE);
   memset(&cpu, 0, sizeof(cpu));
   cpu.csr.mstatus = 0x1800;  // NPC 初始值：MPP=11
@@ -93,8 +100,15 @@ int32_t diff_get_regs(uint32_t *regs) {
   return 0;
 }
 
+// 串口 MMIO 地址（NPC 平台 uart 地址：0xa00003f8）
+#define SERIAL_ADDR 0xa00003f8
+
 // 内存访问接口（地址从 MEM_BASE 开始映射）
 uint32_t mem_read(uint32_t addr, int len) {
+  // 串口 MMIO：读返回 0
+  if (addr == SERIAL_ADDR) {
+    return 0;
+  }
   uint32_t offset = addr - MEM_BASE;
   if (addr < MEM_BASE || offset + len > MEM_SIZE) return 0;
   uint32_t val = 0;
@@ -105,6 +119,17 @@ uint32_t mem_read(uint32_t addr, int len) {
 }
 
 void mem_write(uint32_t addr, int len, uint32_t data) {
+  // 串口 MMIO：输出字符到 stdout（diff 模式静默）
+  if (addr == SERIAL_ADDR && !serial_silent) {
+    for (int i = 0; i < len; i++) {
+      char c = (data >> (i * 8)) & 0xFF;
+      if (c) putchar(c);
+    }
+    fflush(stdout);
+    return;
+  }
+  // diff 模式时串口写也直接忽略
+  if (addr == SERIAL_ADDR && serial_silent) return;
   uint32_t offset = addr - MEM_BASE;
   if (addr < MEM_BASE || offset + len > MEM_SIZE) return;
   for (int i = 0; i < len; i++) {

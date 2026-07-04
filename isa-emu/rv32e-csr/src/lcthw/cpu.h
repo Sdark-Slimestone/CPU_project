@@ -49,6 +49,9 @@ static inline void gpr_write(int idx, uint32_t val) {
 uint32_t csr_read(uint32_t addr);
 void csr_write(uint32_t addr, uint32_t val);
 
+// 设置串口静默模式（diff 测试时 emu 作为参考模型不输出）
+void set_serial_silent(int silent);
+
 // Diff-test 接口（给 NPC diff 功能调用）
 int32_t diff_get_regs(uint32_t *regs);
 
