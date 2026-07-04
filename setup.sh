@@ -31,9 +31,9 @@ check java    openjdk-21-jdk
 check make    make
 check g++     g++
 check ccache  ccache
+check yosys   yosys
 check_pkg libcapstone-dev
 check_pkg libreadline-dev
-check yosys yosys
 
 if ! command -v verilator &>/dev/null; then
     echo "  [MISS] verilator (will build from source)"
@@ -67,6 +67,26 @@ if ! command -v sbt &>/dev/null; then
     echo "--- Installing sbt ---"
     curl -fL https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz | gzip -d > /tmp/cs
     chmod +x /tmp/cs && /tmp/cs setup --yes && rm /tmp/cs
+fi
+
+# Yosys-STA: download iEDA + PDK if missing
+echo ""
+echo "--- Yosys-STA ---"
+if [ -d "yosys-sta" ]; then
+    if [ ! -f "yosys-sta/bin/iEDA" ]; then
+        echo "  [MISS] iEDA tool, downloading..."
+        make -C yosys-sta init 2>&1 | tail -5 || echo "  (skipped, may need SSH key)"
+    else
+        echo "  [OK] iEDA"
+    fi
+    if [ ! -d "yosys-sta/pdk/nangate45" ]; then
+        echo "  [MISS] PDK (nangate45), downloading..."
+        make -C yosys-sta init 2>&1 | tail -5 || echo "  (skipped, may need SSH key)"
+    else
+        echo "  [OK] PDK (nangate45)"
+    fi
+else
+    echo "  (no yosys-sta directory, skipped)"
 fi
 
 echo ""
