@@ -23,6 +23,7 @@ genv test rebuild:
 	$(MAKE) -C $(CHISEL_DIR) $@
 clean-chisel:
 	$(MAKE) -C $(CHISEL_DIR) clean
+	rm -rf MyChisel/src/main MyChisel/DPI_Memory.v
 
 # 代理 nvboard/myexample 的目标
 .PHONY: check-nvboard build-nvboard run-nvboard clean-nvboard
