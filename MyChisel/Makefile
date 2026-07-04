@@ -3,7 +3,9 @@ genv:
 	sbt run
 	mkdir -p verilog
 	mv -f *.sv verilog/
-	verilator --lint-only -Wall -Wno-UNUSEDSIGNAL -Wno-MULTITOP verilog/*.sv
+	cp src/main/resources/DPI_Memory.v verilog/
+	rm -f DPI_Memory.v
+	verilator --lint-only -Wall -Wno-UNUSEDSIGNAL -Wno-MULTITOP verilog/*.sv verilog/DPI_Memory.v
 
 # 运行测试
 test:
