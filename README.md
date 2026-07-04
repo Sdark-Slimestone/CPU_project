@@ -63,6 +63,14 @@ cpu_project/
 
 ## 快速开始
 
+### 0. 初始化环境
+
+```bash
+make init
+```
+
+自动检测并安装缺失的工具链（JDK、sbt、Verilator、Capstone 等）。
+
 ### 1. 部署核心 & 生成 Verilog
 
 ```bash
@@ -75,7 +83,7 @@ make genv
 
 ### 2. NPC 仿真（Verilator）
 
-需要先安装 Verilator 5.0+。四种仿真模式：
+四种仿真模式：
 
 | sim 参数 | 功能 | 使用的 cpp 文件 | 依赖 |
 |----------|------|----------------|------|
