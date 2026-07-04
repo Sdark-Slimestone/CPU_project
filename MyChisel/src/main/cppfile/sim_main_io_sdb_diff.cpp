@@ -103,7 +103,7 @@ unsigned int pmem_read(unsigned int addr) {
 
 // DPI-C 可调用函数：内存写
 void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
-    if (addr == 0xa00003f8) {  // 串口输出
+    if (addr == 0x10000000) {  // 串口输出
         if (mask & 0x1) {
             putchar((char)(data & 0xFF));
             fflush(stdout);
@@ -134,7 +134,7 @@ void sim_finish(void) {
 #endif
 
 // 装载二进制程序到内存
-void load_program(const char *filename, unsigned int base_addr) {
+void load_program(const char *filename, unsigned int base_addr, const char *mainargs) {
     FILE *f = fopen(filename, "rb");
     if (!f) {
         printf("[ERROR] Cannot open %s\n", filename);
@@ -156,6 +156,25 @@ void load_program(const char *filename, unsigned int base_addr) {
         exit(1);
     }
     fclose(f);
+    // mainargs placeholder replacement
+    if (mainargs != NULL && mainargs[0] != '\0') {
+        char buf[57 + 1];
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, mainargs, 57);
+        buf[57] = '\0';
+        int replaced = 0;
+        for (long i = 0; i <= (long)(size - 57); i++) {
+            if (memcmp(&mem[offset + i], "the_insert-arg_rule_in_Makefile_will_insert_mainargs_here", 57) == 0) {
+                memcpy(&mem[offset + i], buf, 57);
+                printf("[INFO] Replaced mainargs placeholder at offset 0x%lx with \"%s\"\n", i, mainargs);
+                replaced = 1;
+                break;
+            }
+        }
+        if (!replaced) {
+            printf("[INFO] mainargs placeholder not found, skipping replacement\n");
+        }
+    }
     printf("[INFO] Loaded %ld bytes to 0x%08x\n", size, base_addr);
 }
 
@@ -201,20 +220,28 @@ static int exec_one_cycle() {
     if (simulation_finished || user_quit) return 0;
 
     // 记录执行前的状态
-    pc_before = top->io_debug_inst1_pc;
-    inst_before = top->io_debug_inst1;
+    pc_before = top->io_debug_pc;
+    inst_before = top->io_debug_inst;
 
+    lw_before = top->io_debug_is_lw;
+    lbu_before = top->io_debug_is_lbu;
+    add_before = top->io_debug_is_add;
+    addi_before = top->io_debug_is_addi;
+    jalr_before = top->io_debug_is_jalr;
+    sw_before = top->io_debug_is_sw;
+    sb_before = top->io_debug_is_sb;
+    lui_before = top->io_debug_is_lui;
 
+    writeback_before = top->io_debug_wbData;
+    io_debug_lsu_rdata_before = top->io_debug_lsu_rdata;
+    io_debug_lsu_addr_before = top->io_debug_lsu_addr;
+    io_debug_lsu_wdata_before = top->io_debug_lsu_wdata;
 
 
 
     top->clock = 0; top->eval();
     top->clock = 1; top->eval();
     cycle++;
-
-    // 双发射：根据stall信号决定NEMU执行1或2条
-    int retired = top->io_debug_stall ? 1 : 2;
-    for (int i = 0; i < retired; i++) difftest_exec(1);
 
     //========================状态对比=========================
     difftest_exec(1);   
@@ -223,14 +250,14 @@ static int exec_one_cycle() {
     difftest_regcpy(nemu_state, DIFFTEST_TO_DUT);
 
     uint32_t npc_regs[16] = {
-        top->io_debug_grf_regs_0,  top->io_debug_grf_regs_1,
-        top->io_debug_grf_regs_2,  top->io_debug_grf_regs_3,
-        top->io_debug_grf_regs_4,  top->io_debug_grf_regs_5,
-        top->io_debug_grf_regs_6,  top->io_debug_grf_regs_7,
-        top->io_debug_grf_regs_8,  top->io_debug_grf_regs_9,
-        top->io_debug_grf_regs_10, top->io_debug_grf_regs_11,
-        top->io_debug_grf_regs_12, top->io_debug_grf_regs_13,
-        top->io_debug_grf_regs_14, top->io_debug_grf_regs_15
+        top->io_debug_regs_0,  top->io_debug_regs_1,
+        top->io_debug_regs_2,  top->io_debug_regs_3,
+        top->io_debug_regs_4,  top->io_debug_regs_5,
+        top->io_debug_regs_6,  top->io_debug_regs_7,
+        top->io_debug_regs_8,  top->io_debug_regs_9,
+        top->io_debug_regs_10, top->io_debug_regs_11,
+        top->io_debug_regs_12, top->io_debug_regs_13,
+        top->io_debug_regs_14, top->io_debug_regs_15
     };
 
     for (int i = 0; i < 16; i++) {
@@ -297,75 +324,54 @@ static void isa_reg_display() {
     for (int i = 0; i < 16; i++) {
         uint32_t val;
         switch(i) {
-            case 0: val = top->io_debug_grf_regs_0; break;
-            case 1: val = top->io_debug_grf_regs_1; break;
-            case 2: val = top->io_debug_grf_regs_2; break;
-            case 3: val = top->io_debug_grf_regs_3; break;
-            case 4: val = top->io_debug_grf_regs_4; break;
-            case 5: val = top->io_debug_grf_regs_5; break;
-            case 6: val = top->io_debug_grf_regs_6; break;
-            case 7: val = top->io_debug_grf_regs_7; break;
-            case 8: val = top->io_debug_grf_regs_8; break;
-            case 9: val = top->io_debug_grf_regs_9; break;
-            case 10: val = top->io_debug_grf_regs_10; break;
-            case 11: val = top->io_debug_grf_regs_11; break;
-            case 12: val = top->io_debug_grf_regs_12; break;
-            case 13: val = top->io_debug_grf_regs_13; break;
-            case 14: val = top->io_debug_grf_regs_14; break;
-            case 15: val = top->io_debug_grf_regs_15; break;
+            case 0: val = top->io_debug_regs_0; break;
+            case 1: val = top->io_debug_regs_1; break;
+            case 2: val = top->io_debug_regs_2; break;
+            case 3: val = top->io_debug_regs_3; break;
+            case 4: val = top->io_debug_regs_4; break;
+            case 5: val = top->io_debug_regs_5; break;
+            case 6: val = top->io_debug_regs_6; break;
+            case 7: val = top->io_debug_regs_7; break;
+            case 8: val = top->io_debug_regs_8; break;
+            case 9: val = top->io_debug_regs_9; break;
+            case 10: val = top->io_debug_regs_10; break;
+            case 11: val = top->io_debug_regs_11; break;
+            case 12: val = top->io_debug_regs_12; break;
+            case 13: val = top->io_debug_regs_13; break;
+            case 14: val = top->io_debug_regs_14; break;
+            case 15: val = top->io_debug_regs_15; break;
             default: val = 0;
         }
         printf("%s = 0x%x (%d)\n", regs[i], val, val);  
     }
-    // 打印 CSR 寄存器
-    printf("\n===== CSR Registers =====\n");
-    printf("mcycle    = 0x%016llx (%llu)\n",
-           (unsigned long long)(top->io_debug_mcycle),
-           (unsigned long long)(top->io_debug_mcycle));
-    printf("minstret  = 0x%016llx (%llu)\n",
-           (unsigned long long)(top->io_debug_minstret),
-           (unsigned long long)(top->io_debug_minstret));
-    printf("mstatus   = 0x%08x (%u)\n", top->io_debug_mstatus, top->io_debug_mstatus);
-    printf("mie       = 0x%08x (%u)\n", top->io_debug_mie, top->io_debug_mie);
-    printf("mtvec     = 0x%08x (%u)\n", top->io_debug_mtvec, top->io_debug_mtvec);
-    printf("mepc      = 0x%08x (%u)\n", top->io_debug_mepc, top->io_debug_mepc);
-    printf("mcause    = 0x%08x (%u)\n", top->io_debug_mcause, top->io_debug_mcause);
-    printf("mtval     = 0x%08x (%u)\n", top->io_debug_mtval, top->io_debug_mtval);
-    printf("mip       = 0x%08x (%u)\n", top->io_debug_mip, top->io_debug_mip);
-    printf("mscratch  = 0x%08x (%u)\n", top->io_debug_mscratch, top->io_debug_mscratch);
-    printf("mvendorid = 0x%08x (%u)\n", top->io_debug_mvendorid, top->io_debug_mvendorid);
-    printf("marchid   = 0x%08x (%u)\n", top->io_debug_marchid, top->io_debug_marchid);
-    printf("mimpid    = 0x%08x (%u)\n", top->io_debug_mimpid, top->io_debug_mimpid);
-    printf("mhartid   = 0x%08x (%u)\n", top->io_debug_mhartid, top->io_debug_mhartid);
-    printf("==========================\n");
 }
 
 static uint32_t isa_reg_str2val(const char *s, bool *success) {
     if (strcmp(s, "pc") == 0 || strcmp(s, "PC") == 0) {
         *success = true;
-        return top->io_debug_inst1_pc;
+        return top->io_debug_pc;
     }
     for (int i = 0; i < 16; i++) {
         if (strcmp(regs[i], s) == 0) {
             *success = true;
             uint32_t val;
             switch(i) {
-                case 0: val = top->io_debug_grf_regs_0; break;
-                case 1: val = top->io_debug_grf_regs_1; break;
-                case 2: val = top->io_debug_grf_regs_2; break;
-                case 3: val = top->io_debug_grf_regs_3; break;
-                case 4: val = top->io_debug_grf_regs_4; break;
-                case 5: val = top->io_debug_grf_regs_5; break;
-                case 6: val = top->io_debug_grf_regs_6; break;
-                case 7: val = top->io_debug_grf_regs_7; break;
-                case 8: val = top->io_debug_grf_regs_8; break;
-                case 9: val = top->io_debug_grf_regs_9; break;
-                case 10: val = top->io_debug_grf_regs_10; break;
-                case 11: val = top->io_debug_grf_regs_11; break;
-                case 12: val = top->io_debug_grf_regs_12; break;
-                case 13: val = top->io_debug_grf_regs_13; break;
-                case 14: val = top->io_debug_grf_regs_14; break;
-                case 15: val = top->io_debug_grf_regs_15; break;
+                case 0: val = top->io_debug_regs_0; break;
+                case 1: val = top->io_debug_regs_1; break;
+                case 2: val = top->io_debug_regs_2; break;
+                case 3: val = top->io_debug_regs_3; break;
+                case 4: val = top->io_debug_regs_4; break;
+                case 5: val = top->io_debug_regs_5; break;
+                case 6: val = top->io_debug_regs_6; break;
+                case 7: val = top->io_debug_regs_7; break;
+                case 8: val = top->io_debug_regs_8; break;
+                case 9: val = top->io_debug_regs_9; break;
+                case 10: val = top->io_debug_regs_10; break;
+                case 11: val = top->io_debug_regs_11; break;
+                case 12: val = top->io_debug_regs_12; break;
+                case 13: val = top->io_debug_regs_13; break;
+                case 14: val = top->io_debug_regs_14; break;
+                case 15: val = top->io_debug_regs_15; break;
                 default: val = 0;
             }
             return val;
@@ -1042,10 +1048,11 @@ int main(int argc, char **argv) {
     init_wp_pool();
     memset(mem, 0, MEM_SIZE);
     if (argc < 2) {
-        printf("Usage: %s <program.bin>\n", argv[0]);
+        printf("Usage: %s <program.bin> [mainargs]\n", argv[0]);
         return 1;
     }
-    load_program(argv[1], MEM_BASE);
+    const char *mainargs = (argc >= 3) ? argv[2] : NULL;
+    load_program(argv[1], MEM_BASE, mainargs);
 
     difftest_init();                                            // 初始化 NEMU
 

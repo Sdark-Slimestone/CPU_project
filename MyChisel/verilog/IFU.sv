@@ -2,50 +2,28 @@
 module IFU(
   input         clock,
                 reset,
-                io_exu_to_ifu_take_branch,
-  input  [31:0] io_exu_to_ifu_branch_target,
-  input         io_idu_to_ifu_is_stall,
-                io_csr_to_ifu_take_trap,
-  input  [31:0] io_csr_to_ifu_trap_pc,
-  input         io_csr_to_ifu_take_mret,
-  input  [31:0] io_csr_to_ifu_mret_pc,
-  output [31:0] io_ifu_to_imem_addr1,
-                io_ifu_to_imem_addr2,
-  input  [31:0] io_imem_to_ifu_inst1,
-                io_imem_to_ifu_inst2,
-  output [31:0] io_ifu_to_idu_inst1,
-                io_ifu_to_idu_inst2,
-                io_ifu_to_idu_inst1_pc,
-                io_ifu_to_idu_inst1_nextpc,
-                io_ifu_to_idu_inst2_nextpc,
-                io_debug_debug_inst1_pc,
-                io_debug_debug_inst2_pc
+                io_take_branch,
+  input  [31:0] io_branch_target,
+  input         io_is_ebreak,
+  output [31:0] io_imemAddr,
+                io_pctogrf,
+                io_debug_pc,
+                io_current_pc
 );
 
   reg  [31:0] pcReg;
   wire [31:0] _pcPlus4_T = pcReg + 32'h4;
-  wire [31:0] _pcPlus8_T = pcReg + 32'h8;
   always @(posedge clock) begin
     if (reset)
       pcReg <= 32'h80000000;
+    else if (io_is_ebreak) begin
+    end
     else
-      pcReg <=
-        io_csr_to_ifu_take_trap
-          ? io_csr_to_ifu_trap_pc
-          : io_csr_to_ifu_take_mret
-              ? io_csr_to_ifu_mret_pc
-              : io_exu_to_ifu_take_branch
-                  ? io_exu_to_ifu_branch_target
-                  : io_idu_to_ifu_is_stall ? _pcPlus4_T : _pcPlus8_T;
+      pcReg <= io_take_branch ? io_branch_target : _pcPlus4_T;
   end // always @(posedge)
-  assign io_ifu_to_imem_addr1 = pcReg;
-  assign io_ifu_to_imem_addr2 = _pcPlus4_T;
-  assign io_ifu_to_idu_inst1 = io_imem_to_ifu_inst1;
-  assign io_ifu_to_idu_inst2 = io_imem_to_ifu_inst2;
-  assign io_ifu_to_idu_inst1_pc = pcReg;
-  assign io_ifu_to_idu_inst1_nextpc = _pcPlus4_T;
-  assign io_ifu_to_idu_inst2_nextpc = _pcPlus8_T;
-  assign io_debug_debug_inst1_pc = pcReg;
-  assign io_debug_debug_inst2_pc = _pcPlus4_T;
+  assign io_imemAddr = pcReg;
+  assign io_pctogrf = _pcPlus4_T;
+  assign io_debug_pc = pcReg;
+  assign io_current_pc = pcReg;
 endmodule
 

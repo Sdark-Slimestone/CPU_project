@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <capstone/capstone.h>   // 新增 Capstone 反汇编库
 
+#define ARRLEN(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define panic(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while(0)
 typedef uint32_t word_t;
 #define MEM_BASE 0x80000000
@@ -20,14 +21,6 @@ static int simulation_finished = 0;
 static int good_trap = 0;
 static int user_quit = 0;           // 用户主动退出标志
 
-#define MAX_WRITES 64
-static uint32_t written_addrs[MAX_WRITES];
-static int written_count = 0;
-
-
-
-
-
 // 仿真启动时刻
 static auto boot_time = std::chrono::steady_clock::now();
 
@@ -37,25 +30,9 @@ static Vtop *top = nullptr;
 // 当前执行的时钟周期计数
 static unsigned long long cycle = 0;
 
-// 保存执行前的状态（双发射）
+// 保存执行前的 PC 和指令（用于输出反汇编和监视点触发时的正确地址）
 static uint32_t pc_before = 0;
 static uint32_t inst_before = 0;
-static uint32_t pc2_before = 0;
-static uint32_t inst2_before = 0;
-static uint32_t stall_before = 0;
-static uint32_t lw_before = 0;
-static uint32_t lbu_before = 0;
-static uint32_t add_before = 0;
-static uint32_t addi_before = 0;
-static uint32_t jalr_before = 0;
-static uint32_t sw_before = 0;
-static uint32_t sb_before = 0;
-static uint32_t lui_before = 0;
-
-static uint32_t writeback_before = 0; 
-static uint32_t io_debug_lsu_rdata_before = 0; 
-static uint32_t io_debug_lsu_addr_before = 0;
-static uint32_t io_debug_lsu_wdata_before = 0;
 
 // Capstone 反汇编句柄
 static csh capstone_handle = 0;
@@ -96,7 +73,7 @@ unsigned int pmem_read(unsigned int addr) {
 
 // DPI-C 可调用函数：内存写
 void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
-    if (addr == 0xa00003f8) {  // 串口输出
+    if (addr == 0x10000000) {  // 串口输出
         if (mask & 0x1) {
             putchar((char)(data & 0xFF));
             fflush(stdout);
@@ -109,12 +86,9 @@ void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
     for (int i = 0; i < 4; i++) {
         if (mask & (1 << i)) {
             mem[offset + i] = (data >> (i * 8)) & 0xFF;
-            if (written_count < MAX_WRITES) {
-                written_addrs[written_count++] = addr + i;  // 注意：实际物理字节地址
             }
         }
     }
-}
 
 // ebreak 回调
 void sim_finish(void) {
@@ -127,7 +101,7 @@ void sim_finish(void) {
 #endif
 
 // 装载二进制程序到内存
-void load_program(const char *filename, unsigned int base_addr) {
+void load_program(const char *filename, unsigned int base_addr, const char *mainargs) {
     FILE *f = fopen(filename, "rb");
     if (!f) {
         printf("[ERROR] Cannot open %s\n", filename);
@@ -149,6 +123,25 @@ void load_program(const char *filename, unsigned int base_addr) {
         exit(1);
     }
     fclose(f);
+    // mainargs placeholder replacement
+    if (mainargs != NULL && mainargs[0] != '\0') {
+        char buf[57 + 1];
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, mainargs, 57);
+        buf[57] = '\0';
+        int replaced = 0;
+        for (long i = 0; i <= (long)(size - 57); i++) {
+            if (memcmp(&mem[offset + i], "the_insert-arg_rule_in_Makefile_will_insert_mainargs_here", 57) == 0) {
+                memcpy(&mem[offset + i], buf, 57);
+                printf("[INFO] Replaced mainargs placeholder at offset 0x%lx with \"%s\"\n", i, mainargs);
+                replaced = 1;
+                break;
+            }
+        }
+        if (!replaced) {
+            printf("[INFO] mainargs placeholder not found, skipping replacement\n");
+        }
+    }
     printf("[INFO] Loaded %ld bytes to 0x%08x\n", size, base_addr);
 }
 
@@ -175,48 +168,25 @@ static void disassemble_instruction(uint32_t pc, uint32_t inst, char *buffer, si
 
 static void print_debug_info() {
     printf("---- Cycle %llu ----\n", cycle);
-    printf("%s\n", stall_before ? "Dual-issue mode: STALLED (single issue)" : "Dual-issue mode: DUAL ISSUE");
-    printf("INST1: PC = 0x%08x, INST = 0x%08x\n", pc_before, inst_before);
+    printf("PC = 0x%08x (before execution)\n", pc_before);
+    printf("INST = 0x%08x\n", inst_before);
     char disasm[128];
     disassemble_instruction(pc_before, inst_before, disasm, sizeof(disasm));
-    printf("       Instruction: %s\n", disasm);
-    if (!stall_before) {
-        disassemble_instruction(pc2_before, inst2_before, disasm, sizeof(disasm));
-        printf("INST2: PC = 0x%08x, INST = 0x%08x\n", pc2_before, inst2_before);
-        printf("       Instruction: %s\n", disasm);
-    }
-    printf("lw=%d,lbu=%d,add=%d,addi=%d,sw=%d,sb=%d,jalr=%d,lui=%d\n", lw_before, lbu_before,add_before,addi_before,sw_before,sb_before,jalr_before,lui_before);
-    printf("Writebackdata= 0x%08x\n",writeback_before);
-    printf("lsu_read_data = 0x%08x\n", io_debug_lsu_rdata_before);
-    printf("lsu_addr = 0x%08x\n", io_debug_lsu_addr_before);
-    printf("lsu_write_data = 0x%08x\n", io_debug_lsu_wdata_before);
+    printf("Instruction: %s\n", disasm);
     printf("\n");
 }
-
 
 // 执行一个完整的时钟周期（低->高->低），并更新全局 cycle
 static int exec_one_cycle() {
     if (simulation_finished || user_quit) return 0;
 
-    // 记录执行前的状态（双发射）
-    pc_before = top->io_debug_inst1_pc;
-    inst_before = top->io_debug_inst1;
-    pc2_before = top->io_debug_inst2_pc;
-    inst2_before = top->io_debug_inst2;
-    stall_before = top->io_debug_stall;
+    // 记录执行前的状态
+    pc_before = top->io_debug_pc;
+    inst_before = top->io_debug_inst;
 
     top->clock = 0; top->eval();
     top->clock = 1; top->eval();
     cycle++;
-
-    written_count = 0;   // 清空记录，准备下一周期
-
-    // DPI 函数（pmem_read/sim_finish）可能在 eval 中设置了 simulation_finished
-    if (simulation_finished) {
-        printf("[INFO] Simulation finished after %llu cycles\n", cycle);
-        printf(good_trap ? "HIT GOOD TRAP\n" : "HIT BAD TRAP\n");
-        return 1;
-    }
 
     if (check_watchpoints()) {
         watchpoint_hit = 1;
@@ -250,75 +220,54 @@ static void isa_reg_display() {
     for (int i = 0; i < 16; i++) {
         uint32_t val;
         switch(i) {
-            case 0: val = top->io_debug_grf_regs_0; break;
-            case 1: val = top->io_debug_grf_regs_1; break;
-            case 2: val = top->io_debug_grf_regs_2; break;
-            case 3: val = top->io_debug_grf_regs_3; break;
-            case 4: val = top->io_debug_grf_regs_4; break;
-            case 5: val = top->io_debug_grf_regs_5; break;
-            case 6: val = top->io_debug_grf_regs_6; break;
-            case 7: val = top->io_debug_grf_regs_7; break;
-            case 8: val = top->io_debug_grf_regs_8; break;
-            case 9: val = top->io_debug_grf_regs_9; break;
-            case 10: val = top->io_debug_grf_regs_10; break;
-            case 11: val = top->io_debug_grf_regs_11; break;
-            case 12: val = top->io_debug_grf_regs_12; break;
-            case 13: val = top->io_debug_grf_regs_13; break;
-            case 14: val = top->io_debug_grf_regs_14; break;
-            case 15: val = top->io_debug_grf_regs_15; break;
+            case 0: val = top->io_debug_regs_0; break;
+            case 1: val = top->io_debug_regs_1; break;
+            case 2: val = top->io_debug_regs_2; break;
+            case 3: val = top->io_debug_regs_3; break;
+            case 4: val = top->io_debug_regs_4; break;
+            case 5: val = top->io_debug_regs_5; break;
+            case 6: val = top->io_debug_regs_6; break;
+            case 7: val = top->io_debug_regs_7; break;
+            case 8: val = top->io_debug_regs_8; break;
+            case 9: val = top->io_debug_regs_9; break;
+            case 10: val = top->io_debug_regs_10; break;
+            case 11: val = top->io_debug_regs_11; break;
+            case 12: val = top->io_debug_regs_12; break;
+            case 13: val = top->io_debug_regs_13; break;
+            case 14: val = top->io_debug_regs_14; break;
+            case 15: val = top->io_debug_regs_15; break;
             default: val = 0;
         }
         printf("%s = 0x%x (%d)\n", regs[i], val, val);  
     }
-    // 打印 CSR 寄存器
-    printf("\n===== CSR Registers =====\n");
-    printf("mcycle    = 0x%016llx (%llu)\n",
-           (unsigned long long)(top->io_debug_mcycle),
-           (unsigned long long)(top->io_debug_mcycle));
-    printf("minstret  = 0x%016llx (%llu)\n",
-           (unsigned long long)(top->io_debug_minstret),
-           (unsigned long long)(top->io_debug_minstret));
-    printf("mstatus   = 0x%08x (%u)\n", top->io_debug_mstatus, top->io_debug_mstatus);
-    printf("mie       = 0x%08x (%u)\n", top->io_debug_mie, top->io_debug_mie);
-    printf("mtvec     = 0x%08x (%u)\n", top->io_debug_mtvec, top->io_debug_mtvec);
-    printf("mepc      = 0x%08x (%u)\n", top->io_debug_mepc, top->io_debug_mepc);
-    printf("mcause    = 0x%08x (%u)\n", top->io_debug_mcause, top->io_debug_mcause);
-    printf("mtval     = 0x%08x (%u)\n", top->io_debug_mtval, top->io_debug_mtval);
-    printf("mip       = 0x%08x (%u)\n", top->io_debug_mip, top->io_debug_mip);
-    printf("mscratch  = 0x%08x (%u)\n", top->io_debug_mscratch, top->io_debug_mscratch);
-    printf("mvendorid = 0x%08x (%u)\n", top->io_debug_mvendorid, top->io_debug_mvendorid);
-    printf("marchid   = 0x%08x (%u)\n", top->io_debug_marchid, top->io_debug_marchid);
-    printf("mimpid    = 0x%08x (%u)\n", top->io_debug_mimpid, top->io_debug_mimpid);
-    printf("mhartid   = 0x%08x (%u)\n", top->io_debug_mhartid, top->io_debug_mhartid);
-    printf("==========================\n");
 }
 
 static uint32_t isa_reg_str2val(const char *s, bool *success) {
     if (strcmp(s, "pc") == 0 || strcmp(s, "PC") == 0) {
         *success = true;
-        return top->io_debug_inst1_pc;
+        return top->io_debug_pc;
     }
     for (int i = 0; i < 16; i++) {
         if (strcmp(regs[i], s) == 0) {
             *success = true;
             uint32_t val;
             switch(i) {
-                case 0: val = top->io_debug_grf_regs_0; break;
-                case 1: val = top->io_debug_grf_regs_1; break;
-                case 2: val = top->io_debug_grf_regs_2; break;
-                case 3: val = top->io_debug_grf_regs_3; break;
-                case 4: val = top->io_debug_grf_regs_4; break;
-                case 5: val = top->io_debug_grf_regs_5; break;
-                case 6: val = top->io_debug_grf_regs_6; break;
-                case 7: val = top->io_debug_grf_regs_7; break;
-                case 8: val = top->io_debug_grf_regs_8; break;
-                case 9: val = top->io_debug_grf_regs_9; break;
-                case 10: val = top->io_debug_grf_regs_10; break;
-                case 11: val = top->io_debug_grf_regs_11; break;
-                case 12: val = top->io_debug_grf_regs_12; break;
-                case 13: val = top->io_debug_grf_regs_13; break;
-                case 14: val = top->io_debug_grf_regs_14; break;
-                case 15: val = top->io_debug_grf_regs_15; break;
+                case 0: val = top->io_debug_regs_0; break;
+                case 1: val = top->io_debug_regs_1; break;
+                case 2: val = top->io_debug_regs_2; break;
+                case 3: val = top->io_debug_regs_3; break;
+                case 4: val = top->io_debug_regs_4; break;
+                case 5: val = top->io_debug_regs_5; break;
+                case 6: val = top->io_debug_regs_6; break;
+                case 7: val = top->io_debug_regs_7; break;
+                case 8: val = top->io_debug_regs_8; break;
+                case 9: val = top->io_debug_regs_9; break;
+                case 10: val = top->io_debug_regs_10; break;
+                case 11: val = top->io_debug_regs_11; break;
+                case 12: val = top->io_debug_regs_12; break;
+                case 13: val = top->io_debug_regs_13; break;
+                case 14: val = top->io_debug_regs_14; break;
+                case 15: val = top->io_debug_regs_15; break;
                 default: val = 0;
             }
             return val;
@@ -371,7 +320,6 @@ static struct rule {
     {" +", TK_NOTYPE},                    // 空格（忽略）
 };
 
-#define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 #define NR_REGEX ARRLEN(rules)
 
 static regex_t re[NR_REGEX] = {};
@@ -996,10 +944,11 @@ int main(int argc, char **argv) {
     init_wp_pool();
     memset(mem, 0, MEM_SIZE);
     if (argc < 2) {
-        printf("Usage: %s <program.bin>\n", argv[0]);
+        printf("Usage: %s <program.bin> [mainargs]\n", argv[0]);
         return 1;
     }
-    load_program(argv[1], MEM_BASE);
+    const char *mainargs = (argc >= 3) ? argv[2] : NULL;
+    load_program(argv[1], MEM_BASE, mainargs);
 
     // 初始化 Capstone 反汇编引擎
     if (cs_open(CS_ARCH_RISCV, CS_MODE_RISCV32, &capstone_handle) != CS_ERR_OK) {

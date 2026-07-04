@@ -5,7 +5,7 @@ TARGET_LIB = minirv.a              # 静态库名
 SO_TARGET_LIB = $(TARGET_LIB:.a=.so) # 动态库名
 
 OPTFLAGS ?=
-CFLAGS = -g -O2 -Wall -Wextra -Isrc -I. -rdynamic -DNDEBUG $(OPTFLAGS)
+CFLAGS = -g -O2 -Wall -Wextra -Isrc -I. -fPIC -rdynamic -DNDEBUG $(OPTFLAGS)
 LIBS = -ldl $(OPTLIBS)
 PREFIX ?= /usr/local
 

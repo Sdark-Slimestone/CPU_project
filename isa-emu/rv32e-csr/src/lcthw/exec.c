@@ -1,0 +1,244 @@
+#include "cpu.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+
+// ========== 位操作宏 ==========
+#define BITS(x, hi, lo) (((x) >> (lo)) & ((1ULL << ((hi) - (lo) + 1)) - 1))
+#define SEXT_BITS(x, hi, lo) ({ \
+  uint32_t __v = BITS(x, hi, lo); \
+  int __len = (hi) - (lo) + 1; \
+  (uint32_t)((int32_t)(__v << (32 - __len)) >> (32 - __len)); \
+})
+
+#define CONCAT_(a, b) a ## b
+#define CONCAT(a, b) CONCAT_(a, b)
+
+// ========== 指令类型枚举 ==========
+enum { TYPE_I, TYPE_U, TYPE_S, TYPE_B, TYPE_J, TYPE_R, TYPE_N };
+
+// ========== INSTPAT 宏 ==========
+#define INSTPAT_START()  do { uint32_t __inst = cpu.inst; int __match = 0; (void)__inst;
+#define INSTPAT_END()    } while(0)
+
+#define INSTPAT(pattern, name, type, body) do { \
+  static const char __pat[] = pattern; \
+  static int __inited = 0; \
+  static uint64_t __key = 0, __mask = 0, __shift = 0; \
+  if (!__inited) { \
+    pattern_decode(__pat, sizeof(__pat) - 1, &__key, &__mask, &__shift); \
+    __inited = 1; \
+  } \
+  if (!__match && ((__inst & __mask) == __key)) { \
+    __match = 1; \
+    int rd = 0; uint32_t src1 = 0, src2 = 0, imm = 0; \
+    decode_operand(CONCAT(TYPE_, type), &rd, &src1, &src2, &imm, __inst); \
+    do { body; } while (0); \
+  } \
+} while(0)
+
+// ========== 快捷宏 ==========
+#define R(i)  cpu.gpr[i]
+#define Mr(a, l)  mem_read(a, l)
+#define Mw(a, l, d)  mem_write(a, l, d)
+
+// ========== 内部函数声明 ==========
+static void pattern_decode(const char *str, int len, uint64_t *key, uint64_t *mask, uint64_t *shift);
+static void decode_operand(int type, int *rd, uint32_t *src1, uint32_t *src2, uint32_t *imm, uint32_t inst);
+
+// 内存访问（在 cpu.c 中实现）
+extern uint32_t mem_read(uint32_t addr, int len);
+extern void mem_write(uint32_t addr, int len, uint32_t data);
+
+static void pattern_decode(const char *str, int len,
+    uint64_t *key, uint64_t *mask, uint64_t *shift) {
+  uint64_t __key = 0, __mask = 0, __shift = 0;
+#define macro(i) \
+  if ((i) >= len) goto finish; \
+  else { \
+    char c = str[i]; \
+    if (c != ' ') { \
+      if (c != '0' && c != '1' && c != '?') return; \
+      __key  = (__key  << 1) | (c == '1' ? 1 : 0); \
+      __mask = (__mask << 1) | (c == '?' ? 0 : 1); \
+      __shift = (c == '?' ? __shift + 1 : 0); \
+    } \
+  }
+#define macro2(i)  macro(i);   macro((i) + 1)
+#define macro4(i)  macro2(i);  macro2((i) + 2)
+#define macro8(i)  macro4(i);  macro4((i) + 4)
+#define macro16(i) macro8(i);  macro8((i) + 8)
+#define macro32(i) macro16(i); macro16((i) + 16)
+#define macro64(i) macro32(i); macro32((i) + 32)
+  macro64(0);
+finish:
+  *key = __key >> __shift;
+  *mask = __mask >> __shift;
+  *shift = __shift;
+#undef macro
+}
+
+static void decode_operand(int type, int *rd, uint32_t *src1, uint32_t *src2, uint32_t *imm, uint32_t inst) {
+  int rs1 = BITS(inst, 19, 15);
+  int rs2 = BITS(inst, 24, 20);
+  *rd = BITS(inst, 11, 7);
+  switch (type) {
+    case TYPE_I: *src1 = R(rs1); *imm = SEXT_BITS(inst, 31, 20); break;
+    case TYPE_U: *imm = BITS(inst, 31, 12) << 12; break;
+    case TYPE_S: *src1 = R(rs1); *src2 = R(rs2);
+      *imm = (SEXT_BITS(inst, 31, 25) << 5) | BITS(inst, 11, 7); break;
+    case TYPE_B: *src1 = R(rs1); *src2 = R(rs2);
+      *imm = (SEXT_BITS(inst, 31, 31) << 12) | (BITS(inst, 30, 25) << 5) |
+             (BITS(inst, 11, 8) << 1) | (BITS(inst, 7, 7) << 11); break;
+    case TYPE_J: *imm = (SEXT_BITS(inst, 31, 31) << 20) | (BITS(inst, 30, 21) << 1) |
+                        (BITS(inst, 20, 20) << 11) | (BITS(inst, 19, 12) << 12); break;
+    case TYPE_R: *src1 = R(rs1); *src2 = R(rs2); break;
+    case TYPE_N: break;
+  }
+}
+
+// ========== 指令执行 ==========
+int isa_exec_once(void) {
+  if (cpu.pc == (uint32_t)-1) return -1;
+
+  cpu.inst = mem_read(cpu.pc, 4);
+  uint32_t old_pc = cpu.pc;
+  cpu.pc += 4;
+
+  INSTPAT_START();
+
+  // R-type
+  INSTPAT("0000000 ????? ????? 000 ????? 01100 11", add,  R, R(rd) = src1 + src2);
+  INSTPAT("0100000 ????? ????? 000 ????? 01100 11", sub,  R, R(rd) = src1 - src2);
+  INSTPAT("0000000 ????? ????? 001 ????? 01100 11", sll,  R, R(rd) = src1 << (src2 & 0x1F));
+  INSTPAT("0000000 ????? ????? 010 ????? 01100 11", slt,  R, R(rd) = ((int32_t)src1 < (int32_t)src2) ? 1 : 0);
+  INSTPAT("0000000 ????? ????? 011 ????? 01100 11", sltu, R, R(rd) = (src1 < src2) ? 1 : 0);
+  INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor,  R, R(rd) = src1 ^ src2);
+  INSTPAT("0000000 ????? ????? 101 ????? 01100 11", srl,  R, R(rd) = src1 >> (src2 & 0x1F));
+  INSTPAT("0100000 ????? ????? 101 ????? 01100 11", sra,  R, R(rd) = (uint32_t)((int32_t)src1 >> (src2 & 0x1F)));
+  INSTPAT("0000000 ????? ????? 110 ????? 01100 11", or,   R, R(rd) = src1 | src2);
+  INSTPAT("0000000 ????? ????? 111 ????? 01100 11", and,  R, R(rd) = src1 & src2);
+
+  // I-type (ALU)
+  INSTPAT("??????? ????? ????? 000 ????? 00100 11", addi, I, R(rd) = src1 + imm);
+  INSTPAT("??????? ????? ????? 010 ????? 00100 11", slti, I, R(rd) = ((int32_t)src1 < (int32_t)imm) ? 1 : 0);
+  INSTPAT("??????? ????? ????? 011 ????? 00100 11", sltiu,I, R(rd) = (src1 < imm) ? 1 : 0);
+  INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori, I, R(rd) = src1 ^ imm);
+  INSTPAT("??????? ????? ????? 110 ????? 00100 11", ori,  I, R(rd) = src1 | imm);
+  INSTPAT("??????? ????? ????? 111 ????? 00100 11", andi, I, R(rd) = src1 & imm);
+  INSTPAT("0000000 ????? ????? 001 ????? 00100 11", slli, I, R(rd) = src1 << (imm & 0x1F));
+  INSTPAT("0000000 ????? ????? 101 ????? 00100 11", srli, I, R(rd) = src1 >> (imm & 0x1F));
+  INSTPAT("0100000 ????? ????? 101 ????? 00100 11", srai, I, R(rd) = (uint32_t)((int32_t)src1 >> (imm & 0x1F)));
+
+  // U-type
+  INSTPAT("???????????????????? ????? 01101 11", lui,   U, R(rd) = imm);
+  INSTPAT("???????????????????? ????? 00101 11", auipc, U, R(rd) = old_pc + imm);
+
+  // J-type
+  INSTPAT("????????????????????????? 11011 11", jal, J, R(rd) = old_pc + 4; cpu.pc = old_pc + imm;);
+
+  // I-type (jalr)
+  INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr, I, {
+    uint32_t target = (src1 + imm) & ~1;
+    R(rd) = old_pc + 4;
+    cpu.pc = target;
+  });
+
+  // B-type
+  INSTPAT("??????? ????? ????? 000 ????? 11000 11", beq,  B, if (src1 == src2) { cpu.pc = old_pc + imm; });
+  INSTPAT("??????? ????? ????? 001 ????? 11000 11", bne,  B, if (src1 != src2) { cpu.pc = old_pc + imm; });
+  INSTPAT("??????? ????? ????? 100 ????? 11000 11", blt,  B, if ((int32_t)src1 < (int32_t)src2) { cpu.pc = old_pc + imm; });
+  INSTPAT("??????? ????? ????? 101 ????? 11000 11", bge,  B, if ((int32_t)src1 >= (int32_t)src2) { cpu.pc = old_pc + imm; });
+  INSTPAT("??????? ????? ????? 110 ????? 11000 11", bltu, B, if (src1 < src2) { cpu.pc = old_pc + imm; });
+  INSTPAT("??????? ????? ????? 111 ????? 11000 11", bgeu, B, if (src1 >= src2) { cpu.pc = old_pc + imm; });
+
+  // Loads
+  INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb,  I, R(rd) = (uint32_t)(int32_t)(int8_t)Mr(src1 + imm, 1));
+  INSTPAT("??????? ????? ????? 001 ????? 00000 11", lh,  I, R(rd) = (uint32_t)(int32_t)(int16_t)Mr(src1 + imm, 2));
+  INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw,  I, R(rd) = Mr(src1 + imm, 4));
+  INSTPAT("??????? ????? ????? 100 ????? 00000 11", lbu, I, R(rd) = Mr(src1 + imm, 1));
+  INSTPAT("??????? ????? ????? 101 ????? 00000 11", lhu, I, R(rd) = Mr(src1 + imm, 2));
+
+  // Stores
+  INSTPAT("??????? ????? ????? 000 ????? 01000 11", sb, S, Mw(src1 + imm, 1, src2));
+  INSTPAT("??????? ????? ????? 001 ????? 01000 11", sh, S, Mw(src1 + imm, 2, src2));
+  INSTPAT("??????? ????? ????? 010 ????? 01000 11", sw, S, Mw(src1 + imm, 4, src2));
+
+  // Fences
+  INSTPAT("??????? ????? ????? 000 ????? 00011 11", fence,  N, );
+  INSTPAT("??????? ????? ????? 001 ????? 00011 11", fencei, N, );
+
+  // 乘除
+  INSTPAT("0000001 ????? ????? 000 ????? 01100 11", mul,    R, R(rd) = (uint32_t)((uint64_t)src1 * (uint64_t)src2));
+  INSTPAT("0000001 ????? ????? 001 ????? 01100 11", mulh,   R, R(rd) = (uint32_t)(((int64_t)(int32_t)src1 * (int64_t)(int32_t)src2) >> 32));
+  INSTPAT("0000001 ????? ????? 010 ????? 01100 11", mulhsu, R, R(rd) = (uint32_t)(((int64_t)(int32_t)src1 * (uint64_t)src2) >> 32));
+  INSTPAT("0000001 ????? ????? 011 ????? 01100 11", mulhu,  R, R(rd) = (uint32_t)(((uint64_t)src1 * (uint64_t)src2) >> 32));
+  INSTPAT("0000001 ????? ????? 100 ????? 01100 11", div,    R, R(rd) = (src2 == 0) ? (uint32_t)-1 : (uint32_t)((int32_t)src1 / (int32_t)src2));
+  INSTPAT("0000001 ????? ????? 101 ????? 01100 11", divu,   R, R(rd) = (src2 == 0) ? (uint32_t)-1 : (src1 / src2));
+  INSTPAT("0000001 ????? ????? 110 ????? 01100 11", rem,    R, R(rd) = (src2 == 0) ? src1 : (uint32_t)((int32_t)src1 % (int32_t)src2));
+  INSTPAT("0000001 ????? ????? 111 ????? 01100 11", remu,   R, R(rd) = (src2 == 0) ? src1 : (src1 % src2));
+
+  // System
+  INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak, N, {
+    printf("HIT GOOD TRAP at pc=0x%x, a0=%u\n", old_pc, R(10));
+    cpu.pc = (uint32_t)-1;
+  });
+
+  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall, N, {
+    cpu.csr.mepc = old_pc;
+    cpu.csr.mcause = 8;
+    cpu.pc = cpu.csr.mtvec;
+  });
+
+  // mret
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret, N, {
+    cpu.pc = cpu.csr.mepc;
+  });
+
+  // CSR: csrrw
+  INSTPAT("???????????? ????? 001 ????? 11100 11", csrrw, I, {
+    uint32_t addr = BITS(__inst, 31, 20);
+    uint32_t old = csr_read(addr); csr_write(addr, src1); R(rd) = old;
+  });
+
+  // CSR: csrrs
+  INSTPAT("???????????? ????? 010 ????? 11100 11", csrrs, I, {
+    uint32_t addr = BITS(__inst, 31, 20);
+    uint32_t old = csr_read(addr); csr_write(addr, old | src1); R(rd) = old;
+  });
+
+  // CSR: csrrc
+  INSTPAT("???????????? ????? 011 ????? 11100 11", csrrc, I, {
+    uint32_t addr = BITS(__inst, 31, 20);
+    uint32_t old = csr_read(addr); csr_write(addr, old & (~src1)); R(rd) = old;
+  });
+
+  // CSR: csrrwi
+  INSTPAT("???????????? ????? 101 ????? 11100 11", csrrwi, I, {
+    uint32_t addr = BITS(__inst, 31, 20);
+    uint32_t uimm = src1; uint32_t old = csr_read(addr); csr_write(addr, uimm); R(rd) = old;
+  });
+
+  // CSR: csrrsi
+  INSTPAT("???????????? ????? 110 ????? 11100 11", csrrsi, I, {
+    uint32_t addr = BITS(__inst, 31, 20);
+    uint32_t uimm = src1; uint32_t old = csr_read(addr); csr_write(addr, old | uimm); R(rd) = old;
+  });
+
+  // CSR: csrrci
+  INSTPAT("???????????? ????? 111 ????? 11100 11", csrrci, I, {
+    uint32_t addr = BITS(__inst, 31, 20);
+    uint32_t uimm = src1; uint32_t old = csr_read(addr); csr_write(addr, old & (~uimm)); R(rd) = old;
+  });
+
+  // Fallback
+  INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv, N, {
+    printf("[ERROR] Invalid instruction at pc=0x%08x, inst=0x%08x\n", old_pc, __inst);
+    cpu.pc = (uint32_t)-1;
+  });
+
+  INSTPAT_END();
+
+  R(0) = 0;
+  return 0;
+}

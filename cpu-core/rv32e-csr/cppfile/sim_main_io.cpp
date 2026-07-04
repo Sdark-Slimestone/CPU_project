@@ -8,6 +8,10 @@
 #define MEM_BASE 0x80000000
 #define MEM_SIZE (128 * 1024 * 1024)  // 128MB
 
+// mainargs 占位符（与 AM 框架中的定义一致）
+#define MAINARGS_PLACEHOLDER "the_insert-arg_rule_in_Makefile_will_insert_mainargs_here"
+#define MAINARGS_PLACEHOLDER_LEN 57
+
 static unsigned char mem[MEM_SIZE];
 static int simulation_finished = 0;
 static int good_trap = 0;   // 1: 正常 ebreak 结束, 0: 异常结束
@@ -93,7 +97,7 @@ void sim_finish(void) {
 }
 #endif
 
-void load_program(const char *filename, unsigned int base_addr) {
+void load_program(const char *filename, unsigned int base_addr, const char *mainargs) {
     FILE *f = fopen(filename, "rb");
     if (!f) {
         printf("[ERROR] Cannot open %s\n", filename);
@@ -117,6 +121,31 @@ void load_program(const char *filename, unsigned int base_addr) {
     }
     fclose(f);
     printf("[INFO] Loaded %ld bytes to 0x%08x\n", size, base_addr);
+
+    // mainargs 占位符替换：在已加载的内存中搜索占位符并替换为实际参数
+    if (mainargs != NULL && mainargs[0] != '\0') {
+        size_t mainargs_len = strlen(mainargs);
+        // 占位符长度固定为 MAINARGS_PLACEHOLDER_LEN，需要填充到相同长度
+        // 剩余部分用 \0 填充，避免残留字符影响字符串比较
+        char buf[MAINARGS_PLACEHOLDER_LEN + 1];
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, mainargs, MAINARGS_PLACEHOLDER_LEN);
+        buf[MAINARGS_PLACEHOLDER_LEN] = '\0';
+
+        // 在内存中查找占位符并替换
+        int replaced = 0;
+        for (long i = 0; i <= (long)(size - MAINARGS_PLACEHOLDER_LEN); i++) {
+            if (memcmp(&mem[offset + i], MAINARGS_PLACEHOLDER, MAINARGS_PLACEHOLDER_LEN) == 0) {
+                memcpy(&mem[offset + i], buf, MAINARGS_PLACEHOLDER_LEN);
+                printf("[INFO] Replaced mainargs placeholder at offset 0x%lx with \"%s\"\n", i, mainargs);
+                replaced = 1;
+                break;
+            }
+        }
+        if (!replaced) {
+            printf("[INFO] mainargs placeholder not found, skipping replacement\n");
+        }
+    }
 }
 
 int main(int argc, char **argv) {
@@ -124,10 +153,11 @@ int main(int argc, char **argv) {
     memset(mem, 0, MEM_SIZE);
 
     if (argc < 2) {
-        printf("Usage: %s <program.bin>\n", argv[0]);
+        printf("Usage: %s <program.bin> [mainargs]\n", argv[0]);
         return 1;
     }
-    load_program(argv[1], MEM_BASE);
+    const char *mainargs = (argc >= 3) ? argv[2] : NULL;
+    load_program(argv[1], MEM_BASE, mainargs);
 
     Vtop *top = new Vtop;
 

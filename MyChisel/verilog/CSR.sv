@@ -2,28 +2,28 @@
 module CSR(
   input         clock,
                 reset,
-  input  [11:0] io_exu_to_csr_addr,
-  input         io_exu_to_csr_wen,
-  input  [11:0] io_exu_to_csr_waddr,
-  input  [2:0]  io_exu_to_csr_op,
-  input  [31:0] io_exu_to_csr_rs1_val,
-  input         io_exu_to_csr_use_imm,
-                io_exu_to_csr_ecall,
-                io_exu_to_csr_is_ebreak,
-  input  [31:0] io_exu_to_csr_current_pc,
-  input  [1:0]  io_exu_to_csr_inst_retire,
-  output [31:0] io_csr_to_exu_rdata,
-  output        io_csr_to_exu_take_trap,
-  output [31:0] io_csr_to_exu_trap_pc,
-  output [63:0] io_csr_to_exu_debug_mcycle,
-                io_csr_to_exu_debug_minstret,
-  output [31:0] io_csr_to_exu_debug_mstatus,
-                io_csr_to_exu_debug_mie,
-                io_csr_to_exu_debug_mtvec,
-                io_csr_to_exu_debug_mepc,
-                io_csr_to_exu_debug_mcause,
-                io_csr_to_exu_debug_mtval,
-                io_csr_to_exu_debug_mip
+  input  [11:0] io_csr_addr,
+  output [31:0] io_csr_rdata,
+  input         io_csr_wen,
+  input  [11:0] io_csr_waddr,
+  input  [2:0]  io_csr_op,
+  input  [31:0] io_rs1_val,
+  input         io_use_imm,
+                io_ecall,
+                io_is_ebreak,
+  input  [31:0] io_current_pc,
+  output        io_take_trap,
+  output [31:0] io_trap_pc,
+  input         io_inst_retire,
+  output [63:0] io_debug_mcycle,
+                io_debug_minstret,
+  output [31:0] io_debug_mstatus,
+                io_debug_mie,
+                io_debug_mtvec,
+                io_debug_mepc,
+                io_debug_mcause,
+                io_debug_mtval,
+                io_debug_mip
 );
 
   reg  [63:0] mcycle_reg;
@@ -35,36 +35,36 @@ module CSR(
   reg  [31:0] mtval_reg;
   reg  [31:0] mie_reg;
   reg  [31:0] mip_reg;
-  wire [31:0] rdata_wire =
-    io_exu_to_csr_addr == 12'h300
+  wire [31:0] io_csr_rdata_0 =
+    io_csr_addr == 12'h300
       ? mstatus_reg
-      : io_exu_to_csr_addr == 12'h301
+      : io_csr_addr == 12'h301
           ? 32'h0
-          : io_exu_to_csr_addr == 12'h304
+          : io_csr_addr == 12'h304
               ? mie_reg
-              : io_exu_to_csr_addr == 12'h305
+              : io_csr_addr == 12'h305
                   ? mtvec_reg
-                  : io_exu_to_csr_addr == 12'h340
+                  : io_csr_addr == 12'h340
                       ? 32'h0
-                      : io_exu_to_csr_addr == 12'h341
+                      : io_csr_addr == 12'h341
                           ? mepc_reg
-                          : io_exu_to_csr_addr == 12'h342
+                          : io_csr_addr == 12'h342
                               ? mcause_reg
-                              : io_exu_to_csr_addr == 12'h343
+                              : io_csr_addr == 12'h343
                                   ? mtval_reg
-                                  : io_exu_to_csr_addr == 12'h344
+                                  : io_csr_addr == 12'h344
                                       ? mip_reg
-                                      : io_exu_to_csr_addr == 12'hB00
+                                      : io_csr_addr == 12'hB00
                                           ? mcycle_reg[31:0]
-                                          : io_exu_to_csr_addr == 12'hB80
+                                          : io_csr_addr == 12'hB80
                                               ? mcycle_reg[63:32]
-                                              : io_exu_to_csr_addr == 12'hB02
+                                              : io_csr_addr == 12'hB02
                                                   ? minstret_reg[31:0]
-                                                  : io_exu_to_csr_addr == 12'hB82
+                                                  : io_csr_addr == 12'hB82
                                                       ? minstret_reg[63:32]
-                                                      : io_exu_to_csr_addr == 12'hF11
+                                                      : io_csr_addr == 12'hF11
                                                           ? 32'h79737978
-                                                          : io_exu_to_csr_addr == 12'hF12
+                                                          : io_csr_addr == 12'hF12
                                                               ? 32'h18A9E3B
                                                               : 32'h0;
   always @(posedge clock) begin
@@ -80,10 +80,7 @@ module CSR(
       mip_reg <= 32'h0;
     end
     else begin
-      automatic logic [31:0] t_rs1 =
-        io_exu_to_csr_use_imm
-          ? {27'h0, io_exu_to_csr_rs1_val[4:0]}
-          : io_exu_to_csr_rs1_val;
+      automatic logic [31:0] t_rs1 = io_use_imm ? {27'h0, io_rs1_val[4:0]} : io_rs1_val;
       automatic logic [31:0] csr_write_val;
       automatic logic        _GEN;
       automatic logic        _GEN_0;
@@ -93,73 +90,74 @@ module CSR(
       automatic logic        _GEN_4;
       automatic logic        _GEN_5;
       csr_write_val =
-        io_exu_to_csr_op == 3'h0
+        io_csr_op == 3'h0
           ? t_rs1
-          : io_exu_to_csr_op == 3'h1
-              ? rdata_wire | t_rs1
-              : io_exu_to_csr_op == 3'h2 ? rdata_wire & ~t_rs1 : 32'h0;
-      _GEN = io_exu_to_csr_waddr == 12'h300;
-      _GEN_0 = io_exu_to_csr_waddr == 12'h304;
-      _GEN_1 = io_exu_to_csr_waddr == 12'h305;
-      _GEN_2 = io_exu_to_csr_waddr == 12'h340;
-      _GEN_3 = io_exu_to_csr_waddr == 12'h341;
-      _GEN_4 = io_exu_to_csr_waddr == 12'h342;
-      _GEN_5 = io_exu_to_csr_waddr == 12'h343;
+          : io_csr_op == 3'h1
+              ? io_csr_rdata_0 | t_rs1
+              : io_csr_op == 3'h2 ? io_csr_rdata_0 & ~t_rs1 : 32'h0;
+      _GEN = io_csr_waddr == 12'h300;
+      _GEN_0 = io_csr_waddr == 12'h304;
+      _GEN_1 = io_csr_waddr == 12'h305;
+      _GEN_2 = io_csr_waddr == 12'h340;
+      _GEN_3 = io_csr_waddr == 12'h341;
+      _GEN_4 = io_csr_waddr == 12'h342;
+      _GEN_5 = io_csr_waddr == 12'h343;
       mcycle_reg <= mcycle_reg + 64'h1;
-      minstret_reg <= minstret_reg + {62'h0, io_exu_to_csr_inst_retire};
-      if (io_exu_to_csr_wen & _GEN)
+      if (io_inst_retire)
+        minstret_reg <= minstret_reg + 64'h1;
+      if (io_csr_wen & _GEN)
         mstatus_reg <= csr_write_val;
-      if (~io_exu_to_csr_wen | _GEN | _GEN_0 | ~_GEN_1) begin
+      if (~io_csr_wen | _GEN | _GEN_0 | ~_GEN_1) begin
       end
       else
         mtvec_reg <= csr_write_val;
-      if (io_exu_to_csr_is_ebreak | io_exu_to_csr_ecall)
-        mepc_reg <= io_exu_to_csr_current_pc;
-      else if (~io_exu_to_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | ~_GEN_3) begin
+      if (io_is_ebreak | io_ecall)
+        mepc_reg <= io_current_pc;
+      else if (~io_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | ~_GEN_3) begin
       end
       else
         mepc_reg <= csr_write_val;
-      if (io_exu_to_csr_is_ebreak) begin
+      if (io_is_ebreak) begin
         mcause_reg <= 32'h3;
-        mtval_reg <= io_exu_to_csr_current_pc;
+        mtval_reg <= io_current_pc;
       end
-      else if (io_exu_to_csr_ecall) begin
+      else if (io_ecall) begin
         mcause_reg <= 32'h8;
         mtval_reg <= 32'h0;
       end
       else begin
-        if (~io_exu_to_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | _GEN_3 | ~_GEN_4) begin
+        if (~io_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | _GEN_3 | ~_GEN_4) begin
         end
         else
           mcause_reg <= csr_write_val;
-        if (~io_exu_to_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | _GEN_3 | _GEN_4
+        if (~io_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | _GEN_3 | _GEN_4
             | ~_GEN_5) begin
         end
         else
           mtval_reg <= csr_write_val;
       end
-      if (~io_exu_to_csr_wen | _GEN | ~_GEN_0) begin
+      if (~io_csr_wen | _GEN | ~_GEN_0) begin
       end
       else
         mie_reg <= csr_write_val;
-      if (~io_exu_to_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | _GEN_3 | _GEN_4 | _GEN_5
-          | io_exu_to_csr_waddr != 12'h344) begin
+      if (~io_csr_wen | _GEN | _GEN_0 | _GEN_1 | _GEN_2 | _GEN_3 | _GEN_4 | _GEN_5
+          | io_csr_waddr != 12'h344) begin
       end
       else
         mip_reg <= csr_write_val;
     end
   end // always @(posedge)
-  assign io_csr_to_exu_rdata = rdata_wire;
-  assign io_csr_to_exu_take_trap = io_exu_to_csr_is_ebreak | io_exu_to_csr_ecall;
-  assign io_csr_to_exu_trap_pc = mtvec_reg;
-  assign io_csr_to_exu_debug_mcycle = mcycle_reg;
-  assign io_csr_to_exu_debug_minstret = minstret_reg;
-  assign io_csr_to_exu_debug_mstatus = mstatus_reg;
-  assign io_csr_to_exu_debug_mie = mie_reg;
-  assign io_csr_to_exu_debug_mtvec = mtvec_reg;
-  assign io_csr_to_exu_debug_mepc = mepc_reg;
-  assign io_csr_to_exu_debug_mcause = mcause_reg;
-  assign io_csr_to_exu_debug_mtval = mtval_reg;
-  assign io_csr_to_exu_debug_mip = mip_reg;
+  assign io_csr_rdata = io_csr_rdata_0;
+  assign io_take_trap = io_is_ebreak | io_ecall;
+  assign io_trap_pc = mtvec_reg;
+  assign io_debug_mcycle = mcycle_reg;
+  assign io_debug_minstret = minstret_reg;
+  assign io_debug_mstatus = mstatus_reg;
+  assign io_debug_mie = mie_reg;
+  assign io_debug_mtvec = mtvec_reg;
+  assign io_debug_mepc = mepc_reg;
+  assign io_debug_mcause = mcause_reg;
+  assign io_debug_mtval = mtval_reg;
+  assign io_debug_mip = mip_reg;
 endmodule
 

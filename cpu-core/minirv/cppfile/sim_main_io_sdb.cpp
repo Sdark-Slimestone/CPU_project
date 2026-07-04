@@ -105,7 +105,7 @@ void sim_finish(void) {
 #endif
 
 // 装载二进制程序到内存
-void load_program(const char *filename, unsigned int base_addr) {
+void load_program(const char *filename, unsigned int base_addr, const char *mainargs) {
     FILE *f = fopen(filename, "rb");
     if (!f) {
         printf("[ERROR] Cannot open %s\n", filename);
@@ -127,6 +127,25 @@ void load_program(const char *filename, unsigned int base_addr) {
         exit(1);
     }
     fclose(f);
+    // mainargs placeholder replacement
+    if (mainargs != NULL && mainargs[0] != '\0') {
+        char buf[57 + 1];
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, mainargs, 57);
+        buf[57] = '\0';
+        int replaced = 0;
+        for (long i = 0; i <= (long)(size - 57); i++) {
+            if (memcmp(&mem[offset + i], "the_insert-arg_rule_in_Makefile_will_insert_mainargs_here", 57) == 0) {
+                memcpy(&mem[offset + i], buf, 57);
+                printf("[INFO] Replaced mainargs placeholder at offset 0x%lx with \"%s\"\n", i, mainargs);
+                replaced = 1;
+                break;
+            }
+        }
+        if (!replaced) {
+            printf("[INFO] mainargs placeholder not found, skipping replacement\n");
+        }
+    }
     printf("[INFO] Loaded %ld bytes to 0x%08x\n", size, base_addr);
 }
 
@@ -929,10 +948,11 @@ int main(int argc, char **argv) {
     init_wp_pool();
     memset(mem, 0, MEM_SIZE);
     if (argc < 2) {
-        printf("Usage: %s <program.bin>\n", argv[0]);
+        printf("Usage: %s <program.bin> [mainargs]\n", argv[0]);
         return 1;
     }
-    load_program(argv[1], MEM_BASE);
+    const char *mainargs = (argc >= 3) ? argv[2] : NULL;
+    load_program(argv[1], MEM_BASE, mainargs);
 
     // 初始化 Capstone 反汇编引擎
     if (cs_open(CS_ARCH_RISCV, CS_MODE_RISCV32, &capstone_handle) != CS_ERR_OK) {

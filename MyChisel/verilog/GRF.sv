@@ -2,21 +2,15 @@
 module GRF(
   input         clock,
                 reset,
-  input  [4:0]  io_idu_to_grf_dec1_redreg_rs1,
-                io_idu_to_grf_dec1_redreg_rs2,
-                io_idu_to_grf_dec2_redreg_rs1,
-                io_idu_to_grf_dec2_redreg_rs2,
-  output [31:0] io_grf_to_idu_dec1_value_inst1rs1_value,
-                io_grf_to_idu_dec1_value_inst1rs2_value,
-                io_grf_to_idu_dec2_value_inst2rs1_value,
-                io_grf_to_idu_dec2_value_inst2rs2_value,
-  input  [4:0]  io_wbu_to_grf_wr1_addr,
-  input  [31:0] io_wbu_to_grf_wr1_data,
-  input  [4:0]  io_wbu_to_grf_wr2_addr,
-  input  [31:0] io_wbu_to_grf_wr2_data,
-  input         io_csr_to_grf_wen,
-  input  [4:0]  io_csr_to_grf_waddr,
-  input  [31:0] io_csr_to_grf_wdata,
+                io_rs1en,
+  input  [4:0]  io_rs1addr,
+  output [31:0] io_rs1out,
+  input         io_rs2en,
+  input  [4:0]  io_rs2addr,
+  output [31:0] io_rs2out,
+  input         io_rden,
+  input  [4:0]  io_rdaddr,
+  input  [31:0] io_input,
   output [31:0] io_debug_regs_0,
                 io_debug_regs_1,
                 io_debug_regs_2,
@@ -91,168 +85,112 @@ module GRF(
       regs_15 <= 32'h0;
     end
     else begin
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'h0 & io_csr_to_grf_wen)
-        regs_0 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'h0)
-        regs_0 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'h0)
-        regs_0 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'h1 & io_csr_to_grf_wen)
-        regs_1 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'h1)
-        regs_1 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'h1)
-        regs_1 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'h2 & io_csr_to_grf_wen)
-        regs_2 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'h2)
-        regs_2 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'h2)
-        regs_2 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'h3 & io_csr_to_grf_wen)
-        regs_3 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'h3)
-        regs_3 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'h3)
-        regs_3 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'h4 & io_csr_to_grf_wen)
-        regs_4 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'h4)
-        regs_4 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'h4)
-        regs_4 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'h5 & io_csr_to_grf_wen)
-        regs_5 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'h5)
-        regs_5 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'h5)
-        regs_5 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'h6 & io_csr_to_grf_wen)
-        regs_6 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'h6)
-        regs_6 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'h6)
-        regs_6 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'h7 & io_csr_to_grf_wen)
-        regs_7 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'h7)
-        regs_7 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'h7)
-        regs_7 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'h8 & io_csr_to_grf_wen)
-        regs_8 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'h8)
-        regs_8 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'h8)
-        regs_8 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'h9 & io_csr_to_grf_wen)
-        regs_9 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'h9)
-        regs_9 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'h9)
-        regs_9 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'hA & io_csr_to_grf_wen)
-        regs_10 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'hA)
-        regs_10 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'hA)
-        regs_10 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'hB & io_csr_to_grf_wen)
-        regs_11 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'hB)
-        regs_11 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'hB)
-        regs_11 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'hC & io_csr_to_grf_wen)
-        regs_12 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'hC)
-        regs_12 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'hC)
-        regs_12 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'hD & io_csr_to_grf_wen)
-        regs_13 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'hD)
-        regs_13 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'hD)
-        regs_13 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & io_csr_to_grf_waddr[3:0] == 4'hE & io_csr_to_grf_wen)
-        regs_14 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & io_wbu_to_grf_wr1_addr[3:0] == 4'hE)
-        regs_14 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & io_wbu_to_grf_wr2_addr[3:0] == 4'hE)
-        regs_14 <= io_wbu_to_grf_wr2_data;
-      if ((|io_csr_to_grf_waddr) & ~(io_csr_to_grf_waddr[4])
-          & (&(io_csr_to_grf_waddr[3:0])) & io_csr_to_grf_wen)
-        regs_15 <= io_csr_to_grf_wdata;
-      else if ((|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4])
-               & (&(io_wbu_to_grf_wr1_addr[3:0])))
-        regs_15 <= io_wbu_to_grf_wr1_data;
-      else if ((|io_wbu_to_grf_wr2_addr) & ~(io_wbu_to_grf_wr2_addr[4])
-               & (&(io_wbu_to_grf_wr2_addr[3:0])))
-        regs_15 <= io_wbu_to_grf_wr2_data;
+      automatic logic        _regs_T_4;
+      automatic logic [31:0] _GEN_0;
+      _regs_T_4 = io_rden & ~(io_rdaddr[4]) & (|io_rdaddr);
+      _GEN_0 = _GEN[io_rdaddr[3:0]];
+      if (io_rdaddr[3:0] == 4'h0) begin
+        if (_regs_T_4)
+          regs_0 <= io_input;
+        else
+          regs_0 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'h1) begin
+        if (_regs_T_4)
+          regs_1 <= io_input;
+        else
+          regs_1 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'h2) begin
+        if (_regs_T_4)
+          regs_2 <= io_input;
+        else
+          regs_2 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'h3) begin
+        if (_regs_T_4)
+          regs_3 <= io_input;
+        else
+          regs_3 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'h4) begin
+        if (_regs_T_4)
+          regs_4 <= io_input;
+        else
+          regs_4 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'h5) begin
+        if (_regs_T_4)
+          regs_5 <= io_input;
+        else
+          regs_5 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'h6) begin
+        if (_regs_T_4)
+          regs_6 <= io_input;
+        else
+          regs_6 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'h7) begin
+        if (_regs_T_4)
+          regs_7 <= io_input;
+        else
+          regs_7 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'h8) begin
+        if (_regs_T_4)
+          regs_8 <= io_input;
+        else
+          regs_8 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'h9) begin
+        if (_regs_T_4)
+          regs_9 <= io_input;
+        else
+          regs_9 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'hA) begin
+        if (_regs_T_4)
+          regs_10 <= io_input;
+        else
+          regs_10 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'hB) begin
+        if (_regs_T_4)
+          regs_11 <= io_input;
+        else
+          regs_11 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'hC) begin
+        if (_regs_T_4)
+          regs_12 <= io_input;
+        else
+          regs_12 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'hD) begin
+        if (_regs_T_4)
+          regs_13 <= io_input;
+        else
+          regs_13 <= _GEN_0;
+      end
+      if (io_rdaddr[3:0] == 4'hE) begin
+        if (_regs_T_4)
+          regs_14 <= io_input;
+        else
+          regs_14 <= _GEN_0;
+      end
+      if (&(io_rdaddr[3:0])) begin
+        if (_regs_T_4)
+          regs_15 <= io_input;
+        else
+          regs_15 <= _GEN_0;
+      end
     end
   end // always @(posedge)
-  assign io_grf_to_idu_dec1_value_inst1rs1_value =
-    (|io_idu_to_grf_dec1_redreg_rs1) & ~(io_idu_to_grf_dec1_redreg_rs1[4])
-      ? _GEN[io_idu_to_grf_dec1_redreg_rs1[3:0]]
-      : 32'h0;
-  assign io_grf_to_idu_dec1_value_inst1rs2_value =
-    (|io_idu_to_grf_dec1_redreg_rs2) & ~(io_idu_to_grf_dec1_redreg_rs2[4])
-      ? _GEN[io_idu_to_grf_dec1_redreg_rs2[3:0]]
-      : 32'h0;
-  assign io_grf_to_idu_dec2_value_inst2rs1_value =
-    (|io_idu_to_grf_dec2_redreg_rs1) & ~(io_idu_to_grf_dec2_redreg_rs1[4])
-      ? _GEN[io_idu_to_grf_dec2_redreg_rs1[3:0]]
-      : 32'h0;
-  assign io_grf_to_idu_dec2_value_inst2rs2_value =
-    (|io_idu_to_grf_dec2_redreg_rs2) & ~(io_idu_to_grf_dec2_redreg_rs2[4])
-      ? _GEN[io_idu_to_grf_dec2_redreg_rs2[3:0]]
-      : 32'h0;
+  assign io_rs1out =
+    io_rs1en & ~(io_rs1addr[4]) & (|io_rs1addr) ? _GEN[io_rs1addr[3:0]] : 32'h0;
+  assign io_rs2out =
+    io_rs2en & ~(io_rs2addr[4]) & (|io_rs2addr) ? _GEN[io_rs2addr[3:0]] : 32'h0;
   assign io_debug_regs_0 = regs_0;
   assign io_debug_regs_1 = regs_1;
   assign io_debug_regs_2 = regs_2;
@@ -269,8 +207,8 @@ module GRF(
   assign io_debug_regs_13 = regs_13;
   assign io_debug_regs_14 = regs_14;
   assign io_debug_regs_15 = regs_15;
-  assign io_debug_rden = (|io_wbu_to_grf_wr1_addr) & ~(io_wbu_to_grf_wr1_addr[4]);
-  assign io_debug_rdaddr = io_wbu_to_grf_wr1_addr;
-  assign io_debug_input = io_wbu_to_grf_wr1_data;
+  assign io_debug_rden = io_rden;
+  assign io_debug_rdaddr = io_rdaddr;
+  assign io_debug_input = io_input;
 endmodule
 

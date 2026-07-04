@@ -28,16 +28,10 @@ module WBU(
                 io_is_sra,
                 io_is_or,
                 io_is_and,
-                io_is_csrrw,
-                io_is_csrrs,
-                io_is_csrrc,
-                io_is_csrrwi,
-                io_is_csrrsi,
-                io_is_csrrci,
   input  [31:0] io_inputfromALU,
                 io_inputfromPC,
                 io_inputfromRAM,
-                io_inputfromCSR,
+                io_inputfromAUIPC,
   output [31:0] io_wbData,
   output        io_regWen,
                 io_debug_regWen,
@@ -49,13 +43,12 @@ module WBU(
     | io_is_lbu | io_is_lhu | io_is_addi | io_is_slti | io_is_sltiu | io_is_xori
     | io_is_ori | io_is_andi | io_is_slli | io_is_srli | io_is_srai | io_is_add
     | io_is_sub | io_is_sll | io_is_slt | io_is_sltu | io_is_xor | io_is_srl | io_is_sra
-    | io_is_or | io_is_and | io_is_csrrw | io_is_csrrs | io_is_csrrc | io_is_csrrwi
-    | io_is_csrrsi | io_is_csrrci;
+    | io_is_or | io_is_and;
   wire [31:0] io_wbData_0 =
-    io_is_csrrw | io_is_csrrs | io_is_csrrc | io_is_csrrwi | io_is_csrrsi | io_is_csrrci
-      ? io_inputfromCSR
-      : io_is_lui | io_is_auipc
-          ? io_inputfromALU
+    io_is_lui
+      ? io_inputfromALU
+      : io_is_auipc
+          ? io_inputfromAUIPC
           : io_is_jal | io_is_jalr
               ? io_inputfromPC
               : io_is_lb | io_is_lh | io_is_lw | io_is_lbu | io_is_lhu

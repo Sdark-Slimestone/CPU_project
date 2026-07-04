@@ -2,841 +2,371 @@
 module top(
   input         clock,
                 reset,
-  output [31:0] io_debug_inst1_pc,
-                io_debug_inst2_pc,
-                io_debug_inst1,
-                io_debug_inst2,
-  output        io_debug_stall,
-  output [31:0] io_debug_exu1_alu_out,
-                io_debug_exu1_alu_source1,
-                io_debug_exu1_alu_source2,
-                io_debug_exu1_agu_out,
-                io_debug_exu2_alu_out,
-                io_debug_exu2_alu_source1,
-                io_debug_exu2_alu_source2,
-                io_debug_exu2_agu_out,
-  output        io_debug_lsu1_is_load,
-                io_debug_lsu1_is_store,
-  output [31:0] io_debug_lsu1_addr,
-                io_debug_lsu1_read_origin,
-                io_debug_lsu1_final_wb_data,
-  output [3:0]  io_debug_lsu1_store_mask,
-  output [31:0] io_debug_lsu1_store_data_shifted,
-  output        io_debug_lsu2_is_load,
-                io_debug_lsu2_is_store,
-  output [31:0] io_debug_lsu2_addr,
-                io_debug_lsu2_read_origin,
-                io_debug_lsu2_final_wb_data,
-  output [3:0]  io_debug_lsu2_store_mask,
-  output [31:0] io_debug_lsu2_store_data_shifted,
-  output        io_debug_wbu_valid1,
-                io_debug_wbu_valid2,
-                io_debug_wbu_conflict,
-  output [4:0]  io_debug_wbu_rd1,
-                io_debug_wbu_rd2,
-                io_debug_wbu_wr1_addr,
-                io_debug_wbu_wr2_addr,
-  output [31:0] io_debug_grf_regs_0,
-                io_debug_grf_regs_1,
-                io_debug_grf_regs_2,
-                io_debug_grf_regs_3,
-                io_debug_grf_regs_4,
-                io_debug_grf_regs_5,
-                io_debug_grf_regs_6,
-                io_debug_grf_regs_7,
-                io_debug_grf_regs_8,
-                io_debug_grf_regs_9,
-                io_debug_grf_regs_10,
-                io_debug_grf_regs_11,
-                io_debug_grf_regs_12,
-                io_debug_grf_regs_13,
-                io_debug_grf_regs_14,
-                io_debug_grf_regs_15,
+                io_clk,
+                io_reset,
+  output [31:0] io_debug_pc,
+                io_debug_regs_0,
+                io_debug_regs_1,
+                io_debug_regs_2,
+                io_debug_regs_3,
+                io_debug_regs_4,
+                io_debug_regs_5,
+                io_debug_regs_6,
+                io_debug_regs_7,
+                io_debug_regs_8,
+                io_debug_regs_9,
+                io_debug_regs_10,
+                io_debug_regs_11,
+                io_debug_regs_12,
+                io_debug_regs_13,
+                io_debug_regs_14,
+                io_debug_regs_15,
+                io_debug_alu_src1,
+                io_debug_alu_src2,
+                io_debug_alu_res,
+  output        io_debug_regWen,
+  output [31:0] io_debug_wbData,
   output        io_debug_grf_rden,
   output [4:0]  io_debug_grf_rdaddr,
   output [31:0] io_debug_grf_input,
-  output [63:0] io_debug_mcycle,
-                io_debug_minstret,
-  output [31:0] io_debug_mstatus,
-                io_debug_mie,
-                io_debug_mtvec,
-                io_debug_mepc,
-                io_debug_mcause,
-                io_debug_mtval,
-                io_debug_mip,
-                io_debug_mscratch,
-                io_debug_mvendorid,
-                io_debug_marchid,
-                io_debug_mimpid,
-                io_debug_mhartid
+  output        io_debug_is_add,
+                io_debug_is_addi,
+                io_debug_is_jalr,
+                io_debug_is_lui,
+                io_debug_is_lbu,
+                io_debug_is_lw,
+                io_debug_is_sw,
+                io_debug_is_sb,
+                io_debug_is_ebreak,
+  output [31:0] io_debug_lsu_addr,
+  output        io_debug_lsu_wen,
+  output [31:0] io_debug_lsu_wdata,
+  output [3:0]  io_debug_lsu_wmask,
+  output        io_debug_lsu_ren,
+  output [31:0] io_debug_lsu_rdata,
+                io_debug_inst
 );
 
-  wire [31:0] _dmem_io_dmem_to_lsu_1_load_data;
-  wire [31:0] _dmem_io_dmem_to_lsu_2_load_data;
-  wire [31:0] _imem_io_imem_to_ifu_inst1;
-  wire [31:0] _imem_io_imem_to_ifu_inst2;
-  wire [31:0] _grf_io_grf_to_idu_dec1_value_inst1rs1_value;
-  wire [31:0] _grf_io_grf_to_idu_dec1_value_inst1rs2_value;
-  wire [31:0] _grf_io_grf_to_idu_dec2_value_inst2rs1_value;
-  wire [31:0] _grf_io_grf_to_idu_dec2_value_inst2rs2_value;
-  wire [4:0]  _wbu_io_wbu_to_grf_wr1_addr;
-  wire [31:0] _wbu_io_wbu_to_grf_wr1_data;
-  wire [4:0]  _wbu_io_wbu_to_grf_wr2_addr;
-  wire [31:0] _wbu_io_wbu_to_grf_wr2_data;
-  wire [31:0] _lsu2_io_lsu_to_dmem_addr;
-  wire [31:0] _lsu2_io_lsu_to_dmem_store_data;
-  wire [3:0]  _lsu2_io_lsu_to_dmem_mask;
-  wire        _lsu2_io_lsu_to_dmem_wen;
-  wire        _lsu2_io_lsu_to_dmem_ren;
-  wire [4:0]  _lsu2_io_lsu_to_wbu_rd;
-  wire [31:0] _lsu2_io_lsu_to_wbu_grf_wb_data;
-  wire        _lsu2_io_ebreak_out;
-  wire [31:0] _lsu1_io_lsu_to_dmem_addr;
-  wire [31:0] _lsu1_io_lsu_to_dmem_store_data;
-  wire [3:0]  _lsu1_io_lsu_to_dmem_mask;
-  wire        _lsu1_io_lsu_to_dmem_wen;
-  wire        _lsu1_io_lsu_to_dmem_ren;
-  wire [4:0]  _lsu1_io_lsu_to_wbu_rd;
-  wire [31:0] _lsu1_io_lsu_to_wbu_grf_wb_data;
-  wire        _lsu1_io_ebreak_out;
-  wire        _exu2_io_exu_to_lsu_op_is_lb;
-  wire        _exu2_io_exu_to_lsu_op_is_lh;
-  wire        _exu2_io_exu_to_lsu_op_is_lw;
-  wire        _exu2_io_exu_to_lsu_op_is_lbu;
-  wire        _exu2_io_exu_to_lsu_op_is_lhu;
-  wire        _exu2_io_exu_to_lsu_op_is_sb;
-  wire        _exu2_io_exu_to_lsu_op_is_sh;
-  wire        _exu2_io_exu_to_lsu_op_is_sw;
-  wire        _exu2_io_exu_to_lsu_op_is_ebreak;
-  wire [31:0] _exu2_io_exu_to_lsu_paddr_addr;
-  wire [31:0] _exu2_io_exu_to_lsu_data_store_data;
-  wire [4:0]  _exu2_io_exu_to_lsu_exu_through_lsu_to_wbu_rd;
-  wire [31:0] _exu2_io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data;
-  wire        _exu2_io_exu_to_ifu_take_branch;
-  wire [31:0] _exu2_io_exu_to_ifu_branch_target;
-  wire        _exu1_io_exu_to_lsu_op_is_lb;
-  wire        _exu1_io_exu_to_lsu_op_is_lh;
-  wire        _exu1_io_exu_to_lsu_op_is_lw;
-  wire        _exu1_io_exu_to_lsu_op_is_lbu;
-  wire        _exu1_io_exu_to_lsu_op_is_lhu;
-  wire        _exu1_io_exu_to_lsu_op_is_sb;
-  wire        _exu1_io_exu_to_lsu_op_is_sh;
-  wire        _exu1_io_exu_to_lsu_op_is_sw;
-  wire        _exu1_io_exu_to_lsu_op_is_ebreak;
-  wire [31:0] _exu1_io_exu_to_lsu_paddr_addr;
-  wire [31:0] _exu1_io_exu_to_lsu_data_store_data;
-  wire [4:0]  _exu1_io_exu_to_lsu_exu_through_lsu_to_wbu_rd;
-  wire [31:0] _exu1_io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data;
-  wire        _exu1_io_exu_to_ifu_take_branch;
-  wire [31:0] _exu1_io_exu_to_ifu_branch_target;
-  wire        _exu1_io_csr_to_ifu_take_trap;
-  wire [31:0] _exu1_io_csr_to_ifu_trap_pc;
-  wire        _exu1_io_csr_to_ifu_take_mret;
-  wire [31:0] _exu1_io_csr_to_ifu_mret_pc;
-  wire        _exu1_io_csr_to_grf_wen;
-  wire [4:0]  _exu1_io_csr_to_grf_waddr;
-  wire [31:0] _exu1_io_csr_to_grf_wdata;
-  wire [4:0]  _idu_io_idu_to_grf_dec1_redreg_rs1;
-  wire [4:0]  _idu_io_idu_to_grf_dec1_redreg_rs2;
-  wire [4:0]  _idu_io_idu_to_grf_dec2_redreg_rs1;
-  wire [4:0]  _idu_io_idu_to_grf_dec2_redreg_rs2;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_lui;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_auipc;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_jal;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_jalr;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_beq;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_bne;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_blt;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_bge;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_bltu;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_bgeu;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_lb;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_lh;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_lw;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_lbu;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_lhu;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_sb;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_sh;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_sw;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_addi;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_slti;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_sltiu;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_xori;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_ori;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_andi;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_slli;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_srli;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_srai;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_add;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_sub;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_sll;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_slt;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_sltu;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_xor;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_srl;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_sra;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_or;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_and;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_ebreak;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrw;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrs;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrc;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrwi;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrsi;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_csrrci;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_ecall;
-  wire        _idu_io_idu_to_exu1_dec1_op_is_mret;
-  wire [31:0] _idu_io_idu_to_exu1_dec1_imm;
-  wire [31:0] _idu_io_idu_to_exu1_dec1_val_rs1_val;
-  wire [31:0] _idu_io_idu_to_exu1_dec1_val_rs2_val;
-  wire [31:0] _idu_io_idu_to_exu1_dec1_val_nextpc;
-  wire [4:0]  _idu_io_idu_to_exu1_dec1_rd;
-  wire        _idu_io_idu_to_exu1_is_stall;
-  wire [31:0] _idu_io_idu_to_exu1_inst1_pc;
-  wire [31:0] _idu_io_idu_to_exu1_inst1;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_lui;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_auipc;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_jal;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_jalr;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_beq;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_bne;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_blt;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_bge;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_bltu;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_bgeu;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_lb;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_lh;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_lw;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_lbu;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_lhu;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_sb;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_sh;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_sw;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_addi;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_slti;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_sltiu;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_xori;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_ori;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_andi;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_slli;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_srli;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_srai;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_add;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_sub;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_sll;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_slt;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_sltu;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_xor;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_srl;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_sra;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_or;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_and;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_ebreak;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrw;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrs;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrc;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrwi;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrsi;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_csrrci;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_ecall;
-  wire        _idu_io_idu_to_exu2_dec2_op_is_mret;
-  wire [31:0] _idu_io_idu_to_exu2_dec2_imm;
-  wire [31:0] _idu_io_idu_to_exu2_dec2_val_rs1_val;
-  wire [31:0] _idu_io_idu_to_exu2_dec2_val_rs2_val;
-  wire [31:0] _idu_io_idu_to_exu2_dec2_val_nextpc;
-  wire [4:0]  _idu_io_idu_to_exu2_dec2_rd;
-  wire        _idu_io_idu_to_ifu_is_stall;
-  wire [31:0] _ifu_io_ifu_to_imem_addr1;
-  wire [31:0] _ifu_io_ifu_to_imem_addr2;
-  wire [31:0] _ifu_io_ifu_to_idu_inst1;
-  wire [31:0] _ifu_io_ifu_to_idu_inst2;
-  wire [31:0] _ifu_io_ifu_to_idu_inst1_pc;
-  wire [31:0] _ifu_io_ifu_to_idu_inst1_nextpc;
-  wire [31:0] _ifu_io_ifu_to_idu_inst2_nextpc;
+  wire [31:0] _dataMem_rdata;
+  wire [31:0] _instMem_rdata;
+  wire [31:0] _grf_io_rs1out;
+  wire [31:0] _grf_io_rs2out;
+  wire [31:0] _wbu_io_wbData;
+  wire        _wbu_io_regWen;
+  wire [31:0] _lsu_io_dmemAddr;
+  wire        _lsu_io_dmemWen;
+  wire [31:0] _lsu_io_dmemWdata;
+  wire [3:0]  _lsu_io_dmemWmask;
+  wire        _lsu_io_dmemRen;
+  wire [31:0] _lsu_io_rdata;
+  wire        _exu_io_rs1_en;
+  wire        _exu_io_rs2_en;
+  wire [31:0] _exu_io_agu_addr;
+  wire [31:0] _exu_io_store_data;
+  wire [31:0] _exu_io_alu_result;
+  wire [4:0]  _exu_io_rd_out;
+  wire        _exu_io_take_branch;
+  wire [31:0] _exu_io_branch_target;
+  wire [4:0]  _exu_io_rs1_addr_out;
+  wire [4:0]  _exu_io_rs2_addr_out;
+  wire        _idu_io_is_lui;
+  wire        _idu_io_is_auipc;
+  wire        _idu_io_is_jal;
+  wire        _idu_io_is_jalr;
+  wire        _idu_io_is_beq;
+  wire        _idu_io_is_bne;
+  wire        _idu_io_is_blt;
+  wire        _idu_io_is_bge;
+  wire        _idu_io_is_bltu;
+  wire        _idu_io_is_bgeu;
+  wire        _idu_io_is_lb;
+  wire        _idu_io_is_lh;
+  wire        _idu_io_is_lw;
+  wire        _idu_io_is_lbu;
+  wire        _idu_io_is_lhu;
+  wire        _idu_io_is_sb;
+  wire        _idu_io_is_sh;
+  wire        _idu_io_is_sw;
+  wire        _idu_io_is_addi;
+  wire        _idu_io_is_slti;
+  wire        _idu_io_is_sltiu;
+  wire        _idu_io_is_xori;
+  wire        _idu_io_is_ori;
+  wire        _idu_io_is_andi;
+  wire        _idu_io_is_slli;
+  wire        _idu_io_is_srli;
+  wire        _idu_io_is_srai;
+  wire        _idu_io_is_add;
+  wire        _idu_io_is_sub;
+  wire        _idu_io_is_sll;
+  wire        _idu_io_is_slt;
+  wire        _idu_io_is_sltu;
+  wire        _idu_io_is_xor;
+  wire        _idu_io_is_srl;
+  wire        _idu_io_is_sra;
+  wire        _idu_io_is_or;
+  wire        _idu_io_is_and;
+  wire        _idu_io_is_ebreak;
+  wire [4:0]  _idu_io_rd;
+  wire [4:0]  _idu_io_rs1;
+  wire [4:0]  _idu_io_rs2;
+  wire [31:0] _idu_io_imm_i;
+  wire [31:0] _idu_io_imm_s;
+  wire [31:0] _idu_io_imm_b;
+  wire [31:0] _idu_io_imm_u;
+  wire [31:0] _idu_io_imm_j;
+  wire [31:0] _ifu_io_imemAddr;
+  wire [31:0] _ifu_io_pctogrf;
+  wire [31:0] _ifu_io_current_pc;
   IFU ifu (
-    .clock                       (clock),
-    .reset                       (reset),
-    .io_exu_to_ifu_take_branch
-      (_exu1_io_exu_to_ifu_take_branch | _exu2_io_exu_to_ifu_take_branch),
-    .io_exu_to_ifu_branch_target
-      (_exu1_io_exu_to_ifu_take_branch
-         ? _exu1_io_exu_to_ifu_branch_target
-         : _exu2_io_exu_to_ifu_branch_target),
-    .io_idu_to_ifu_is_stall      (_idu_io_idu_to_ifu_is_stall),
-    .io_csr_to_ifu_take_trap     (_exu1_io_csr_to_ifu_take_trap),
-    .io_csr_to_ifu_trap_pc       (_exu1_io_csr_to_ifu_trap_pc),
-    .io_csr_to_ifu_take_mret     (_exu1_io_csr_to_ifu_take_mret),
-    .io_csr_to_ifu_mret_pc       (_exu1_io_csr_to_ifu_mret_pc),
-    .io_ifu_to_imem_addr1        (_ifu_io_ifu_to_imem_addr1),
-    .io_ifu_to_imem_addr2        (_ifu_io_ifu_to_imem_addr2),
-    .io_imem_to_ifu_inst1        (_imem_io_imem_to_ifu_inst1),
-    .io_imem_to_ifu_inst2        (_imem_io_imem_to_ifu_inst2),
-    .io_ifu_to_idu_inst1         (_ifu_io_ifu_to_idu_inst1),
-    .io_ifu_to_idu_inst2         (_ifu_io_ifu_to_idu_inst2),
-    .io_ifu_to_idu_inst1_pc      (_ifu_io_ifu_to_idu_inst1_pc),
-    .io_ifu_to_idu_inst1_nextpc  (_ifu_io_ifu_to_idu_inst1_nextpc),
-    .io_ifu_to_idu_inst2_nextpc  (_ifu_io_ifu_to_idu_inst2_nextpc),
-    .io_debug_debug_inst1_pc     (io_debug_inst1_pc),
-    .io_debug_debug_inst2_pc     (io_debug_inst2_pc)
+    .clock            (clock),
+    .reset            (reset),
+    .io_take_branch   (_exu_io_take_branch),
+    .io_branch_target (_exu_io_branch_target),
+    .io_is_ebreak     (_idu_io_is_ebreak),
+    .io_imemAddr      (_ifu_io_imemAddr),
+    .io_pctogrf       (_ifu_io_pctogrf),
+    .io_debug_pc      (io_debug_pc),
+    .io_current_pc    (_ifu_io_current_pc)
   );
   idu idu (
-    .io_ifu_to_idu_inst1                     (_ifu_io_ifu_to_idu_inst1),
-    .io_ifu_to_idu_inst2                     (_ifu_io_ifu_to_idu_inst2),
-    .io_ifu_to_idu_inst1_pc                  (_ifu_io_ifu_to_idu_inst1_pc),
-    .io_ifu_to_idu_inst1_nextpc              (_ifu_io_ifu_to_idu_inst1_nextpc),
-    .io_ifu_to_idu_inst2_nextpc              (_ifu_io_ifu_to_idu_inst2_nextpc),
-    .io_grf_to_idu_dec1_value_inst1rs1_value
-      (_grf_io_grf_to_idu_dec1_value_inst1rs1_value),
-    .io_grf_to_idu_dec1_value_inst1rs2_value
-      (_grf_io_grf_to_idu_dec1_value_inst1rs2_value),
-    .io_grf_to_idu_dec2_value_inst2rs1_value
-      (_grf_io_grf_to_idu_dec2_value_inst2rs1_value),
-    .io_grf_to_idu_dec2_value_inst2rs2_value
-      (_grf_io_grf_to_idu_dec2_value_inst2rs2_value),
-    .io_idu_to_grf_dec1_redreg_rs1           (_idu_io_idu_to_grf_dec1_redreg_rs1),
-    .io_idu_to_grf_dec1_redreg_rs2           (_idu_io_idu_to_grf_dec1_redreg_rs2),
-    .io_idu_to_grf_dec2_redreg_rs1           (_idu_io_idu_to_grf_dec2_redreg_rs1),
-    .io_idu_to_grf_dec2_redreg_rs2           (_idu_io_idu_to_grf_dec2_redreg_rs2),
-    .io_idu_to_exu1_dec1_op_is_lui           (_idu_io_idu_to_exu1_dec1_op_is_lui),
-    .io_idu_to_exu1_dec1_op_is_auipc         (_idu_io_idu_to_exu1_dec1_op_is_auipc),
-    .io_idu_to_exu1_dec1_op_is_jal           (_idu_io_idu_to_exu1_dec1_op_is_jal),
-    .io_idu_to_exu1_dec1_op_is_jalr          (_idu_io_idu_to_exu1_dec1_op_is_jalr),
-    .io_idu_to_exu1_dec1_op_is_beq           (_idu_io_idu_to_exu1_dec1_op_is_beq),
-    .io_idu_to_exu1_dec1_op_is_bne           (_idu_io_idu_to_exu1_dec1_op_is_bne),
-    .io_idu_to_exu1_dec1_op_is_blt           (_idu_io_idu_to_exu1_dec1_op_is_blt),
-    .io_idu_to_exu1_dec1_op_is_bge           (_idu_io_idu_to_exu1_dec1_op_is_bge),
-    .io_idu_to_exu1_dec1_op_is_bltu          (_idu_io_idu_to_exu1_dec1_op_is_bltu),
-    .io_idu_to_exu1_dec1_op_is_bgeu          (_idu_io_idu_to_exu1_dec1_op_is_bgeu),
-    .io_idu_to_exu1_dec1_op_is_lb            (_idu_io_idu_to_exu1_dec1_op_is_lb),
-    .io_idu_to_exu1_dec1_op_is_lh            (_idu_io_idu_to_exu1_dec1_op_is_lh),
-    .io_idu_to_exu1_dec1_op_is_lw            (_idu_io_idu_to_exu1_dec1_op_is_lw),
-    .io_idu_to_exu1_dec1_op_is_lbu           (_idu_io_idu_to_exu1_dec1_op_is_lbu),
-    .io_idu_to_exu1_dec1_op_is_lhu           (_idu_io_idu_to_exu1_dec1_op_is_lhu),
-    .io_idu_to_exu1_dec1_op_is_sb            (_idu_io_idu_to_exu1_dec1_op_is_sb),
-    .io_idu_to_exu1_dec1_op_is_sh            (_idu_io_idu_to_exu1_dec1_op_is_sh),
-    .io_idu_to_exu1_dec1_op_is_sw            (_idu_io_idu_to_exu1_dec1_op_is_sw),
-    .io_idu_to_exu1_dec1_op_is_addi          (_idu_io_idu_to_exu1_dec1_op_is_addi),
-    .io_idu_to_exu1_dec1_op_is_slti          (_idu_io_idu_to_exu1_dec1_op_is_slti),
-    .io_idu_to_exu1_dec1_op_is_sltiu         (_idu_io_idu_to_exu1_dec1_op_is_sltiu),
-    .io_idu_to_exu1_dec1_op_is_xori          (_idu_io_idu_to_exu1_dec1_op_is_xori),
-    .io_idu_to_exu1_dec1_op_is_ori           (_idu_io_idu_to_exu1_dec1_op_is_ori),
-    .io_idu_to_exu1_dec1_op_is_andi          (_idu_io_idu_to_exu1_dec1_op_is_andi),
-    .io_idu_to_exu1_dec1_op_is_slli          (_idu_io_idu_to_exu1_dec1_op_is_slli),
-    .io_idu_to_exu1_dec1_op_is_srli          (_idu_io_idu_to_exu1_dec1_op_is_srli),
-    .io_idu_to_exu1_dec1_op_is_srai          (_idu_io_idu_to_exu1_dec1_op_is_srai),
-    .io_idu_to_exu1_dec1_op_is_add           (_idu_io_idu_to_exu1_dec1_op_is_add),
-    .io_idu_to_exu1_dec1_op_is_sub           (_idu_io_idu_to_exu1_dec1_op_is_sub),
-    .io_idu_to_exu1_dec1_op_is_sll           (_idu_io_idu_to_exu1_dec1_op_is_sll),
-    .io_idu_to_exu1_dec1_op_is_slt           (_idu_io_idu_to_exu1_dec1_op_is_slt),
-    .io_idu_to_exu1_dec1_op_is_sltu          (_idu_io_idu_to_exu1_dec1_op_is_sltu),
-    .io_idu_to_exu1_dec1_op_is_xor           (_idu_io_idu_to_exu1_dec1_op_is_xor),
-    .io_idu_to_exu1_dec1_op_is_srl           (_idu_io_idu_to_exu1_dec1_op_is_srl),
-    .io_idu_to_exu1_dec1_op_is_sra           (_idu_io_idu_to_exu1_dec1_op_is_sra),
-    .io_idu_to_exu1_dec1_op_is_or            (_idu_io_idu_to_exu1_dec1_op_is_or),
-    .io_idu_to_exu1_dec1_op_is_and           (_idu_io_idu_to_exu1_dec1_op_is_and),
-    .io_idu_to_exu1_dec1_op_is_ebreak        (_idu_io_idu_to_exu1_dec1_op_is_ebreak),
-    .io_idu_to_exu1_dec1_op_is_csrrw         (_idu_io_idu_to_exu1_dec1_op_is_csrrw),
-    .io_idu_to_exu1_dec1_op_is_csrrs         (_idu_io_idu_to_exu1_dec1_op_is_csrrs),
-    .io_idu_to_exu1_dec1_op_is_csrrc         (_idu_io_idu_to_exu1_dec1_op_is_csrrc),
-    .io_idu_to_exu1_dec1_op_is_csrrwi        (_idu_io_idu_to_exu1_dec1_op_is_csrrwi),
-    .io_idu_to_exu1_dec1_op_is_csrrsi        (_idu_io_idu_to_exu1_dec1_op_is_csrrsi),
-    .io_idu_to_exu1_dec1_op_is_csrrci        (_idu_io_idu_to_exu1_dec1_op_is_csrrci),
-    .io_idu_to_exu1_dec1_op_is_ecall         (_idu_io_idu_to_exu1_dec1_op_is_ecall),
-    .io_idu_to_exu1_dec1_op_is_mret          (_idu_io_idu_to_exu1_dec1_op_is_mret),
-    .io_idu_to_exu1_dec1_imm                 (_idu_io_idu_to_exu1_dec1_imm),
-    .io_idu_to_exu1_dec1_val_rs1_val         (_idu_io_idu_to_exu1_dec1_val_rs1_val),
-    .io_idu_to_exu1_dec1_val_rs2_val         (_idu_io_idu_to_exu1_dec1_val_rs2_val),
-    .io_idu_to_exu1_dec1_val_nextpc          (_idu_io_idu_to_exu1_dec1_val_nextpc),
-    .io_idu_to_exu1_dec1_rd                  (_idu_io_idu_to_exu1_dec1_rd),
-    .io_idu_to_exu1_is_stall                 (_idu_io_idu_to_exu1_is_stall),
-    .io_idu_to_exu1_inst1_pc                 (_idu_io_idu_to_exu1_inst1_pc),
-    .io_idu_to_exu1_inst1                    (_idu_io_idu_to_exu1_inst1),
-    .io_idu_to_exu2_dec2_op_is_lui           (_idu_io_idu_to_exu2_dec2_op_is_lui),
-    .io_idu_to_exu2_dec2_op_is_auipc         (_idu_io_idu_to_exu2_dec2_op_is_auipc),
-    .io_idu_to_exu2_dec2_op_is_jal           (_idu_io_idu_to_exu2_dec2_op_is_jal),
-    .io_idu_to_exu2_dec2_op_is_jalr          (_idu_io_idu_to_exu2_dec2_op_is_jalr),
-    .io_idu_to_exu2_dec2_op_is_beq           (_idu_io_idu_to_exu2_dec2_op_is_beq),
-    .io_idu_to_exu2_dec2_op_is_bne           (_idu_io_idu_to_exu2_dec2_op_is_bne),
-    .io_idu_to_exu2_dec2_op_is_blt           (_idu_io_idu_to_exu2_dec2_op_is_blt),
-    .io_idu_to_exu2_dec2_op_is_bge           (_idu_io_idu_to_exu2_dec2_op_is_bge),
-    .io_idu_to_exu2_dec2_op_is_bltu          (_idu_io_idu_to_exu2_dec2_op_is_bltu),
-    .io_idu_to_exu2_dec2_op_is_bgeu          (_idu_io_idu_to_exu2_dec2_op_is_bgeu),
-    .io_idu_to_exu2_dec2_op_is_lb            (_idu_io_idu_to_exu2_dec2_op_is_lb),
-    .io_idu_to_exu2_dec2_op_is_lh            (_idu_io_idu_to_exu2_dec2_op_is_lh),
-    .io_idu_to_exu2_dec2_op_is_lw            (_idu_io_idu_to_exu2_dec2_op_is_lw),
-    .io_idu_to_exu2_dec2_op_is_lbu           (_idu_io_idu_to_exu2_dec2_op_is_lbu),
-    .io_idu_to_exu2_dec2_op_is_lhu           (_idu_io_idu_to_exu2_dec2_op_is_lhu),
-    .io_idu_to_exu2_dec2_op_is_sb            (_idu_io_idu_to_exu2_dec2_op_is_sb),
-    .io_idu_to_exu2_dec2_op_is_sh            (_idu_io_idu_to_exu2_dec2_op_is_sh),
-    .io_idu_to_exu2_dec2_op_is_sw            (_idu_io_idu_to_exu2_dec2_op_is_sw),
-    .io_idu_to_exu2_dec2_op_is_addi          (_idu_io_idu_to_exu2_dec2_op_is_addi),
-    .io_idu_to_exu2_dec2_op_is_slti          (_idu_io_idu_to_exu2_dec2_op_is_slti),
-    .io_idu_to_exu2_dec2_op_is_sltiu         (_idu_io_idu_to_exu2_dec2_op_is_sltiu),
-    .io_idu_to_exu2_dec2_op_is_xori          (_idu_io_idu_to_exu2_dec2_op_is_xori),
-    .io_idu_to_exu2_dec2_op_is_ori           (_idu_io_idu_to_exu2_dec2_op_is_ori),
-    .io_idu_to_exu2_dec2_op_is_andi          (_idu_io_idu_to_exu2_dec2_op_is_andi),
-    .io_idu_to_exu2_dec2_op_is_slli          (_idu_io_idu_to_exu2_dec2_op_is_slli),
-    .io_idu_to_exu2_dec2_op_is_srli          (_idu_io_idu_to_exu2_dec2_op_is_srli),
-    .io_idu_to_exu2_dec2_op_is_srai          (_idu_io_idu_to_exu2_dec2_op_is_srai),
-    .io_idu_to_exu2_dec2_op_is_add           (_idu_io_idu_to_exu2_dec2_op_is_add),
-    .io_idu_to_exu2_dec2_op_is_sub           (_idu_io_idu_to_exu2_dec2_op_is_sub),
-    .io_idu_to_exu2_dec2_op_is_sll           (_idu_io_idu_to_exu2_dec2_op_is_sll),
-    .io_idu_to_exu2_dec2_op_is_slt           (_idu_io_idu_to_exu2_dec2_op_is_slt),
-    .io_idu_to_exu2_dec2_op_is_sltu          (_idu_io_idu_to_exu2_dec2_op_is_sltu),
-    .io_idu_to_exu2_dec2_op_is_xor           (_idu_io_idu_to_exu2_dec2_op_is_xor),
-    .io_idu_to_exu2_dec2_op_is_srl           (_idu_io_idu_to_exu2_dec2_op_is_srl),
-    .io_idu_to_exu2_dec2_op_is_sra           (_idu_io_idu_to_exu2_dec2_op_is_sra),
-    .io_idu_to_exu2_dec2_op_is_or            (_idu_io_idu_to_exu2_dec2_op_is_or),
-    .io_idu_to_exu2_dec2_op_is_and           (_idu_io_idu_to_exu2_dec2_op_is_and),
-    .io_idu_to_exu2_dec2_op_is_ebreak        (_idu_io_idu_to_exu2_dec2_op_is_ebreak),
-    .io_idu_to_exu2_dec2_op_is_csrrw         (_idu_io_idu_to_exu2_dec2_op_is_csrrw),
-    .io_idu_to_exu2_dec2_op_is_csrrs         (_idu_io_idu_to_exu2_dec2_op_is_csrrs),
-    .io_idu_to_exu2_dec2_op_is_csrrc         (_idu_io_idu_to_exu2_dec2_op_is_csrrc),
-    .io_idu_to_exu2_dec2_op_is_csrrwi        (_idu_io_idu_to_exu2_dec2_op_is_csrrwi),
-    .io_idu_to_exu2_dec2_op_is_csrrsi        (_idu_io_idu_to_exu2_dec2_op_is_csrrsi),
-    .io_idu_to_exu2_dec2_op_is_csrrci        (_idu_io_idu_to_exu2_dec2_op_is_csrrci),
-    .io_idu_to_exu2_dec2_op_is_ecall         (_idu_io_idu_to_exu2_dec2_op_is_ecall),
-    .io_idu_to_exu2_dec2_op_is_mret          (_idu_io_idu_to_exu2_dec2_op_is_mret),
-    .io_idu_to_exu2_dec2_imm                 (_idu_io_idu_to_exu2_dec2_imm),
-    .io_idu_to_exu2_dec2_val_rs1_val         (_idu_io_idu_to_exu2_dec2_val_rs1_val),
-    .io_idu_to_exu2_dec2_val_rs2_val         (_idu_io_idu_to_exu2_dec2_val_rs2_val),
-    .io_idu_to_exu2_dec2_val_nextpc          (_idu_io_idu_to_exu2_dec2_val_nextpc),
-    .io_idu_to_exu2_dec2_rd                  (_idu_io_idu_to_exu2_dec2_rd),
-    .io_idu_to_ifu_is_stall                  (_idu_io_idu_to_ifu_is_stall),
-    .io_idu_debug_debug_inst1                (io_debug_inst1),
-    .io_idu_debug_debug_inst2                (io_debug_inst2),
-    .io_idu_debug_is_stall                   (io_debug_stall)
+    .io_inst       (_instMem_rdata),
+    .io_is_lui     (_idu_io_is_lui),
+    .io_is_auipc   (_idu_io_is_auipc),
+    .io_is_jal     (_idu_io_is_jal),
+    .io_is_jalr    (_idu_io_is_jalr),
+    .io_is_beq     (_idu_io_is_beq),
+    .io_is_bne     (_idu_io_is_bne),
+    .io_is_blt     (_idu_io_is_blt),
+    .io_is_bge     (_idu_io_is_bge),
+    .io_is_bltu    (_idu_io_is_bltu),
+    .io_is_bgeu    (_idu_io_is_bgeu),
+    .io_is_lb      (_idu_io_is_lb),
+    .io_is_lh      (_idu_io_is_lh),
+    .io_is_lw      (_idu_io_is_lw),
+    .io_is_lbu     (_idu_io_is_lbu),
+    .io_is_lhu     (_idu_io_is_lhu),
+    .io_is_sb      (_idu_io_is_sb),
+    .io_is_sh      (_idu_io_is_sh),
+    .io_is_sw      (_idu_io_is_sw),
+    .io_is_addi    (_idu_io_is_addi),
+    .io_is_slti    (_idu_io_is_slti),
+    .io_is_sltiu   (_idu_io_is_sltiu),
+    .io_is_xori    (_idu_io_is_xori),
+    .io_is_ori     (_idu_io_is_ori),
+    .io_is_andi    (_idu_io_is_andi),
+    .io_is_slli    (_idu_io_is_slli),
+    .io_is_srli    (_idu_io_is_srli),
+    .io_is_srai    (_idu_io_is_srai),
+    .io_is_add     (_idu_io_is_add),
+    .io_is_sub     (_idu_io_is_sub),
+    .io_is_sll     (_idu_io_is_sll),
+    .io_is_slt     (_idu_io_is_slt),
+    .io_is_sltu    (_idu_io_is_sltu),
+    .io_is_xor     (_idu_io_is_xor),
+    .io_is_srl     (_idu_io_is_srl),
+    .io_is_sra     (_idu_io_is_sra),
+    .io_is_or      (_idu_io_is_or),
+    .io_is_and     (_idu_io_is_and),
+    .io_is_ebreak  (_idu_io_is_ebreak),
+    .io_rd         (_idu_io_rd),
+    .io_rs1        (_idu_io_rs1),
+    .io_rs2        (_idu_io_rs2),
+    .io_imm_i      (_idu_io_imm_i),
+    .io_imm_s      (_idu_io_imm_s),
+    .io_imm_b      (_idu_io_imm_b),
+    .io_imm_u      (_idu_io_imm_u),
+    .io_imm_j      (_idu_io_imm_j),
+    .io_debug_inst (io_debug_inst)
   );
-  EXU exu1 (
-    .clock                                            (clock),
-    .reset                                            (reset),
-    .io_idu_to_exu1_dec1_op_is_lui
-      (_idu_io_idu_to_exu1_dec1_op_is_lui),
-    .io_idu_to_exu1_dec1_op_is_auipc
-      (_idu_io_idu_to_exu1_dec1_op_is_auipc),
-    .io_idu_to_exu1_dec1_op_is_jal
-      (_idu_io_idu_to_exu1_dec1_op_is_jal),
-    .io_idu_to_exu1_dec1_op_is_jalr
-      (_idu_io_idu_to_exu1_dec1_op_is_jalr),
-    .io_idu_to_exu1_dec1_op_is_beq
-      (_idu_io_idu_to_exu1_dec1_op_is_beq),
-    .io_idu_to_exu1_dec1_op_is_bne
-      (_idu_io_idu_to_exu1_dec1_op_is_bne),
-    .io_idu_to_exu1_dec1_op_is_blt
-      (_idu_io_idu_to_exu1_dec1_op_is_blt),
-    .io_idu_to_exu1_dec1_op_is_bge
-      (_idu_io_idu_to_exu1_dec1_op_is_bge),
-    .io_idu_to_exu1_dec1_op_is_bltu
-      (_idu_io_idu_to_exu1_dec1_op_is_bltu),
-    .io_idu_to_exu1_dec1_op_is_bgeu
-      (_idu_io_idu_to_exu1_dec1_op_is_bgeu),
-    .io_idu_to_exu1_dec1_op_is_lb                     (_idu_io_idu_to_exu1_dec1_op_is_lb),
-    .io_idu_to_exu1_dec1_op_is_lh                     (_idu_io_idu_to_exu1_dec1_op_is_lh),
-    .io_idu_to_exu1_dec1_op_is_lw                     (_idu_io_idu_to_exu1_dec1_op_is_lw),
-    .io_idu_to_exu1_dec1_op_is_lbu
-      (_idu_io_idu_to_exu1_dec1_op_is_lbu),
-    .io_idu_to_exu1_dec1_op_is_lhu
-      (_idu_io_idu_to_exu1_dec1_op_is_lhu),
-    .io_idu_to_exu1_dec1_op_is_sb                     (_idu_io_idu_to_exu1_dec1_op_is_sb),
-    .io_idu_to_exu1_dec1_op_is_sh                     (_idu_io_idu_to_exu1_dec1_op_is_sh),
-    .io_idu_to_exu1_dec1_op_is_sw                     (_idu_io_idu_to_exu1_dec1_op_is_sw),
-    .io_idu_to_exu1_dec1_op_is_addi
-      (_idu_io_idu_to_exu1_dec1_op_is_addi),
-    .io_idu_to_exu1_dec1_op_is_slti
-      (_idu_io_idu_to_exu1_dec1_op_is_slti),
-    .io_idu_to_exu1_dec1_op_is_sltiu
-      (_idu_io_idu_to_exu1_dec1_op_is_sltiu),
-    .io_idu_to_exu1_dec1_op_is_xori
-      (_idu_io_idu_to_exu1_dec1_op_is_xori),
-    .io_idu_to_exu1_dec1_op_is_ori
-      (_idu_io_idu_to_exu1_dec1_op_is_ori),
-    .io_idu_to_exu1_dec1_op_is_andi
-      (_idu_io_idu_to_exu1_dec1_op_is_andi),
-    .io_idu_to_exu1_dec1_op_is_slli
-      (_idu_io_idu_to_exu1_dec1_op_is_slli),
-    .io_idu_to_exu1_dec1_op_is_srli
-      (_idu_io_idu_to_exu1_dec1_op_is_srli),
-    .io_idu_to_exu1_dec1_op_is_srai
-      (_idu_io_idu_to_exu1_dec1_op_is_srai),
-    .io_idu_to_exu1_dec1_op_is_add
-      (_idu_io_idu_to_exu1_dec1_op_is_add),
-    .io_idu_to_exu1_dec1_op_is_sub
-      (_idu_io_idu_to_exu1_dec1_op_is_sub),
-    .io_idu_to_exu1_dec1_op_is_sll
-      (_idu_io_idu_to_exu1_dec1_op_is_sll),
-    .io_idu_to_exu1_dec1_op_is_slt
-      (_idu_io_idu_to_exu1_dec1_op_is_slt),
-    .io_idu_to_exu1_dec1_op_is_sltu
-      (_idu_io_idu_to_exu1_dec1_op_is_sltu),
-    .io_idu_to_exu1_dec1_op_is_xor
-      (_idu_io_idu_to_exu1_dec1_op_is_xor),
-    .io_idu_to_exu1_dec1_op_is_srl
-      (_idu_io_idu_to_exu1_dec1_op_is_srl),
-    .io_idu_to_exu1_dec1_op_is_sra
-      (_idu_io_idu_to_exu1_dec1_op_is_sra),
-    .io_idu_to_exu1_dec1_op_is_or                     (_idu_io_idu_to_exu1_dec1_op_is_or),
-    .io_idu_to_exu1_dec1_op_is_and
-      (_idu_io_idu_to_exu1_dec1_op_is_and),
-    .io_idu_to_exu1_dec1_op_is_ebreak
-      (_idu_io_idu_to_exu1_dec1_op_is_ebreak),
-    .io_idu_to_exu1_dec1_op_is_csrrw
-      (_idu_io_idu_to_exu1_dec1_op_is_csrrw),
-    .io_idu_to_exu1_dec1_op_is_csrrs
-      (_idu_io_idu_to_exu1_dec1_op_is_csrrs),
-    .io_idu_to_exu1_dec1_op_is_csrrc
-      (_idu_io_idu_to_exu1_dec1_op_is_csrrc),
-    .io_idu_to_exu1_dec1_op_is_csrrwi
-      (_idu_io_idu_to_exu1_dec1_op_is_csrrwi),
-    .io_idu_to_exu1_dec1_op_is_csrrsi
-      (_idu_io_idu_to_exu1_dec1_op_is_csrrsi),
-    .io_idu_to_exu1_dec1_op_is_csrrci
-      (_idu_io_idu_to_exu1_dec1_op_is_csrrci),
-    .io_idu_to_exu1_dec1_op_is_ecall
-      (_idu_io_idu_to_exu1_dec1_op_is_ecall),
-    .io_idu_to_exu1_dec1_op_is_mret
-      (_idu_io_idu_to_exu1_dec1_op_is_mret),
-    .io_idu_to_exu1_dec1_imm                          (_idu_io_idu_to_exu1_dec1_imm),
-    .io_idu_to_exu1_dec1_val_rs1_val
-      (_idu_io_idu_to_exu1_dec1_val_rs1_val),
-    .io_idu_to_exu1_dec1_val_rs2_val
-      (_idu_io_idu_to_exu1_dec1_val_rs2_val),
-    .io_idu_to_exu1_dec1_val_nextpc
-      (_idu_io_idu_to_exu1_dec1_val_nextpc),
-    .io_idu_to_exu1_dec1_rd                           (_idu_io_idu_to_exu1_dec1_rd),
-    .io_idu_to_exu1_is_stall                          (_idu_io_idu_to_exu1_is_stall),
-    .io_idu_to_exu1_inst1_pc                          (_idu_io_idu_to_exu1_inst1_pc),
-    .io_idu_to_exu1_inst1                             (_idu_io_idu_to_exu1_inst1),
-    .io_exu_to_lsu_op_is_lb                           (_exu1_io_exu_to_lsu_op_is_lb),
-    .io_exu_to_lsu_op_is_lh                           (_exu1_io_exu_to_lsu_op_is_lh),
-    .io_exu_to_lsu_op_is_lw                           (_exu1_io_exu_to_lsu_op_is_lw),
-    .io_exu_to_lsu_op_is_lbu                          (_exu1_io_exu_to_lsu_op_is_lbu),
-    .io_exu_to_lsu_op_is_lhu                          (_exu1_io_exu_to_lsu_op_is_lhu),
-    .io_exu_to_lsu_op_is_sb                           (_exu1_io_exu_to_lsu_op_is_sb),
-    .io_exu_to_lsu_op_is_sh                           (_exu1_io_exu_to_lsu_op_is_sh),
-    .io_exu_to_lsu_op_is_sw                           (_exu1_io_exu_to_lsu_op_is_sw),
-    .io_exu_to_lsu_op_is_ebreak                       (_exu1_io_exu_to_lsu_op_is_ebreak),
-    .io_exu_to_lsu_paddr_addr                         (_exu1_io_exu_to_lsu_paddr_addr),
-    .io_exu_to_lsu_data_store_data
-      (_exu1_io_exu_to_lsu_data_store_data),
-    .io_exu_to_lsu_exu_through_lsu_to_wbu_rd
-      (_exu1_io_exu_to_lsu_exu_through_lsu_to_wbu_rd),
-    .io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data
-      (_exu1_io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data),
-    .io_exu_to_ifu_take_branch                        (_exu1_io_exu_to_ifu_take_branch),
-    .io_exu_to_ifu_branch_target                      (_exu1_io_exu_to_ifu_branch_target),
-    .io_csr_to_ifu_take_trap                          (_exu1_io_csr_to_ifu_take_trap),
-    .io_csr_to_ifu_trap_pc                            (_exu1_io_csr_to_ifu_trap_pc),
-    .io_csr_to_ifu_take_mret                          (_exu1_io_csr_to_ifu_take_mret),
-    .io_csr_to_ifu_mret_pc                            (_exu1_io_csr_to_ifu_mret_pc),
-    .io_csr_to_grf_wen                                (_exu1_io_csr_to_grf_wen),
-    .io_csr_to_grf_waddr                              (_exu1_io_csr_to_grf_waddr),
-    .io_csr_to_grf_wdata                              (_exu1_io_csr_to_grf_wdata),
-    .io_debug_csr_mcycle                              (io_debug_mcycle),
-    .io_debug_csr_minstret                            (io_debug_minstret),
-    .io_debug_csr_mstatus                             (io_debug_mstatus),
-    .io_debug_csr_mie                                 (io_debug_mie),
-    .io_debug_csr_mtvec                               (io_debug_mtvec),
-    .io_debug_csr_mepc                                (io_debug_mepc),
-    .io_debug_csr_mcause                              (io_debug_mcause),
-    .io_debug_csr_mtval                               (io_debug_mtval),
-    .io_debug_csr_mip                                 (io_debug_mip),
-    .io_debug_alu_out                                 (io_debug_exu1_alu_out),
-    .io_debug_alu_source1                             (io_debug_exu1_alu_source1),
-    .io_debug_alu_source2                             (io_debug_exu1_alu_source2),
-    .io_debug_agu_out                                 (io_debug_exu1_agu_out)
+  EXU exu (
+    .io_is_lui        (_idu_io_is_lui),
+    .io_is_auipc      (_idu_io_is_auipc),
+    .io_is_jal        (_idu_io_is_jal),
+    .io_is_jalr       (_idu_io_is_jalr),
+    .io_is_beq        (_idu_io_is_beq),
+    .io_is_bne        (_idu_io_is_bne),
+    .io_is_blt        (_idu_io_is_blt),
+    .io_is_bge        (_idu_io_is_bge),
+    .io_is_bltu       (_idu_io_is_bltu),
+    .io_is_bgeu       (_idu_io_is_bgeu),
+    .io_is_lb         (_idu_io_is_lb),
+    .io_is_lh         (_idu_io_is_lh),
+    .io_is_lw         (_idu_io_is_lw),
+    .io_is_lbu        (_idu_io_is_lbu),
+    .io_is_lhu        (_idu_io_is_lhu),
+    .io_is_sb         (_idu_io_is_sb),
+    .io_is_sh         (_idu_io_is_sh),
+    .io_is_sw         (_idu_io_is_sw),
+    .io_is_addi       (_idu_io_is_addi),
+    .io_is_slti       (_idu_io_is_slti),
+    .io_is_sltiu      (_idu_io_is_sltiu),
+    .io_is_xori       (_idu_io_is_xori),
+    .io_is_ori        (_idu_io_is_ori),
+    .io_is_andi       (_idu_io_is_andi),
+    .io_is_slli       (_idu_io_is_slli),
+    .io_is_srli       (_idu_io_is_srli),
+    .io_is_srai       (_idu_io_is_srai),
+    .io_is_add        (_idu_io_is_add),
+    .io_is_sub        (_idu_io_is_sub),
+    .io_is_sll        (_idu_io_is_sll),
+    .io_is_slt        (_idu_io_is_slt),
+    .io_is_sltu       (_idu_io_is_sltu),
+    .io_is_xor        (_idu_io_is_xor),
+    .io_is_srl        (_idu_io_is_srl),
+    .io_is_sra        (_idu_io_is_sra),
+    .io_is_or         (_idu_io_is_or),
+    .io_is_and        (_idu_io_is_and),
+    .io_rs1_addr      (_idu_io_rs1),
+    .io_rs2_addr      (_idu_io_rs2),
+    .io_rd_addr       (_idu_io_rd),
+    .io_rs1_data      (_grf_io_rs1out),
+    .io_rs2_data      (_grf_io_rs2out),
+    .io_imm_i         (_idu_io_imm_i),
+    .io_imm_s         (_idu_io_imm_s),
+    .io_imm_b         (_idu_io_imm_b),
+    .io_imm_u         (_idu_io_imm_u),
+    .io_imm_j         (_idu_io_imm_j),
+    .io_current_pc    (_ifu_io_current_pc),
+    .io_rs1_en        (_exu_io_rs1_en),
+    .io_rs2_en        (_exu_io_rs2_en),
+    .io_agu_addr      (_exu_io_agu_addr),
+    .io_store_data    (_exu_io_store_data),
+    .io_alu_result    (_exu_io_alu_result),
+    .io_rd_out        (_exu_io_rd_out),
+    .io_take_branch   (_exu_io_take_branch),
+    .io_branch_target (_exu_io_branch_target),
+    .io_rs1_addr_out  (_exu_io_rs1_addr_out),
+    .io_rs2_addr_out  (_exu_io_rs2_addr_out),
+    .io_alu_src1      (io_debug_alu_src1),
+    .io_alu_src2      (io_debug_alu_src2)
   );
-  EXU exu2 (
-    .clock                                            (clock),
-    .reset                                            (reset),
-    .io_idu_to_exu1_dec1_op_is_lui
-      (_idu_io_idu_to_exu2_dec2_op_is_lui),
-    .io_idu_to_exu1_dec1_op_is_auipc
-      (_idu_io_idu_to_exu2_dec2_op_is_auipc),
-    .io_idu_to_exu1_dec1_op_is_jal
-      (_idu_io_idu_to_exu2_dec2_op_is_jal),
-    .io_idu_to_exu1_dec1_op_is_jalr
-      (_idu_io_idu_to_exu2_dec2_op_is_jalr),
-    .io_idu_to_exu1_dec1_op_is_beq
-      (_idu_io_idu_to_exu2_dec2_op_is_beq),
-    .io_idu_to_exu1_dec1_op_is_bne
-      (_idu_io_idu_to_exu2_dec2_op_is_bne),
-    .io_idu_to_exu1_dec1_op_is_blt
-      (_idu_io_idu_to_exu2_dec2_op_is_blt),
-    .io_idu_to_exu1_dec1_op_is_bge
-      (_idu_io_idu_to_exu2_dec2_op_is_bge),
-    .io_idu_to_exu1_dec1_op_is_bltu
-      (_idu_io_idu_to_exu2_dec2_op_is_bltu),
-    .io_idu_to_exu1_dec1_op_is_bgeu
-      (_idu_io_idu_to_exu2_dec2_op_is_bgeu),
-    .io_idu_to_exu1_dec1_op_is_lb                     (_idu_io_idu_to_exu2_dec2_op_is_lb),
-    .io_idu_to_exu1_dec1_op_is_lh                     (_idu_io_idu_to_exu2_dec2_op_is_lh),
-    .io_idu_to_exu1_dec1_op_is_lw                     (_idu_io_idu_to_exu2_dec2_op_is_lw),
-    .io_idu_to_exu1_dec1_op_is_lbu
-      (_idu_io_idu_to_exu2_dec2_op_is_lbu),
-    .io_idu_to_exu1_dec1_op_is_lhu
-      (_idu_io_idu_to_exu2_dec2_op_is_lhu),
-    .io_idu_to_exu1_dec1_op_is_sb                     (_idu_io_idu_to_exu2_dec2_op_is_sb),
-    .io_idu_to_exu1_dec1_op_is_sh                     (_idu_io_idu_to_exu2_dec2_op_is_sh),
-    .io_idu_to_exu1_dec1_op_is_sw                     (_idu_io_idu_to_exu2_dec2_op_is_sw),
-    .io_idu_to_exu1_dec1_op_is_addi
-      (_idu_io_idu_to_exu2_dec2_op_is_addi),
-    .io_idu_to_exu1_dec1_op_is_slti
-      (_idu_io_idu_to_exu2_dec2_op_is_slti),
-    .io_idu_to_exu1_dec1_op_is_sltiu
-      (_idu_io_idu_to_exu2_dec2_op_is_sltiu),
-    .io_idu_to_exu1_dec1_op_is_xori
-      (_idu_io_idu_to_exu2_dec2_op_is_xori),
-    .io_idu_to_exu1_dec1_op_is_ori
-      (_idu_io_idu_to_exu2_dec2_op_is_ori),
-    .io_idu_to_exu1_dec1_op_is_andi
-      (_idu_io_idu_to_exu2_dec2_op_is_andi),
-    .io_idu_to_exu1_dec1_op_is_slli
-      (_idu_io_idu_to_exu2_dec2_op_is_slli),
-    .io_idu_to_exu1_dec1_op_is_srli
-      (_idu_io_idu_to_exu2_dec2_op_is_srli),
-    .io_idu_to_exu1_dec1_op_is_srai
-      (_idu_io_idu_to_exu2_dec2_op_is_srai),
-    .io_idu_to_exu1_dec1_op_is_add
-      (_idu_io_idu_to_exu2_dec2_op_is_add),
-    .io_idu_to_exu1_dec1_op_is_sub
-      (_idu_io_idu_to_exu2_dec2_op_is_sub),
-    .io_idu_to_exu1_dec1_op_is_sll
-      (_idu_io_idu_to_exu2_dec2_op_is_sll),
-    .io_idu_to_exu1_dec1_op_is_slt
-      (_idu_io_idu_to_exu2_dec2_op_is_slt),
-    .io_idu_to_exu1_dec1_op_is_sltu
-      (_idu_io_idu_to_exu2_dec2_op_is_sltu),
-    .io_idu_to_exu1_dec1_op_is_xor
-      (_idu_io_idu_to_exu2_dec2_op_is_xor),
-    .io_idu_to_exu1_dec1_op_is_srl
-      (_idu_io_idu_to_exu2_dec2_op_is_srl),
-    .io_idu_to_exu1_dec1_op_is_sra
-      (_idu_io_idu_to_exu2_dec2_op_is_sra),
-    .io_idu_to_exu1_dec1_op_is_or                     (_idu_io_idu_to_exu2_dec2_op_is_or),
-    .io_idu_to_exu1_dec1_op_is_and
-      (_idu_io_idu_to_exu2_dec2_op_is_and),
-    .io_idu_to_exu1_dec1_op_is_ebreak
-      (_idu_io_idu_to_exu2_dec2_op_is_ebreak),
-    .io_idu_to_exu1_dec1_op_is_csrrw
-      (_idu_io_idu_to_exu2_dec2_op_is_csrrw),
-    .io_idu_to_exu1_dec1_op_is_csrrs
-      (_idu_io_idu_to_exu2_dec2_op_is_csrrs),
-    .io_idu_to_exu1_dec1_op_is_csrrc
-      (_idu_io_idu_to_exu2_dec2_op_is_csrrc),
-    .io_idu_to_exu1_dec1_op_is_csrrwi
-      (_idu_io_idu_to_exu2_dec2_op_is_csrrwi),
-    .io_idu_to_exu1_dec1_op_is_csrrsi
-      (_idu_io_idu_to_exu2_dec2_op_is_csrrsi),
-    .io_idu_to_exu1_dec1_op_is_csrrci
-      (_idu_io_idu_to_exu2_dec2_op_is_csrrci),
-    .io_idu_to_exu1_dec1_op_is_ecall
-      (_idu_io_idu_to_exu2_dec2_op_is_ecall),
-    .io_idu_to_exu1_dec1_op_is_mret
-      (_idu_io_idu_to_exu2_dec2_op_is_mret),
-    .io_idu_to_exu1_dec1_imm                          (_idu_io_idu_to_exu2_dec2_imm),
-    .io_idu_to_exu1_dec1_val_rs1_val
-      (_idu_io_idu_to_exu2_dec2_val_rs1_val),
-    .io_idu_to_exu1_dec1_val_rs2_val
-      (_idu_io_idu_to_exu2_dec2_val_rs2_val),
-    .io_idu_to_exu1_dec1_val_nextpc
-      (_idu_io_idu_to_exu2_dec2_val_nextpc),
-    .io_idu_to_exu1_dec1_rd                           (_idu_io_idu_to_exu2_dec2_rd),
-    .io_idu_to_exu1_is_stall                          (1'h0),
-    .io_idu_to_exu1_inst1_pc                          (32'h0),
-    .io_idu_to_exu1_inst1                             (32'h0),
-    .io_exu_to_lsu_op_is_lb                           (_exu2_io_exu_to_lsu_op_is_lb),
-    .io_exu_to_lsu_op_is_lh                           (_exu2_io_exu_to_lsu_op_is_lh),
-    .io_exu_to_lsu_op_is_lw                           (_exu2_io_exu_to_lsu_op_is_lw),
-    .io_exu_to_lsu_op_is_lbu                          (_exu2_io_exu_to_lsu_op_is_lbu),
-    .io_exu_to_lsu_op_is_lhu                          (_exu2_io_exu_to_lsu_op_is_lhu),
-    .io_exu_to_lsu_op_is_sb                           (_exu2_io_exu_to_lsu_op_is_sb),
-    .io_exu_to_lsu_op_is_sh                           (_exu2_io_exu_to_lsu_op_is_sh),
-    .io_exu_to_lsu_op_is_sw                           (_exu2_io_exu_to_lsu_op_is_sw),
-    .io_exu_to_lsu_op_is_ebreak                       (_exu2_io_exu_to_lsu_op_is_ebreak),
-    .io_exu_to_lsu_paddr_addr                         (_exu2_io_exu_to_lsu_paddr_addr),
-    .io_exu_to_lsu_data_store_data
-      (_exu2_io_exu_to_lsu_data_store_data),
-    .io_exu_to_lsu_exu_through_lsu_to_wbu_rd
-      (_exu2_io_exu_to_lsu_exu_through_lsu_to_wbu_rd),
-    .io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data
-      (_exu2_io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data),
-    .io_exu_to_ifu_take_branch                        (_exu2_io_exu_to_ifu_take_branch),
-    .io_exu_to_ifu_branch_target                      (_exu2_io_exu_to_ifu_branch_target),
-    .io_csr_to_ifu_take_trap                          (/* unused */),
-    .io_csr_to_ifu_trap_pc                            (/* unused */),
-    .io_csr_to_ifu_take_mret                          (/* unused */),
-    .io_csr_to_ifu_mret_pc                            (/* unused */),
-    .io_csr_to_grf_wen                                (/* unused */),
-    .io_csr_to_grf_waddr                              (/* unused */),
-    .io_csr_to_grf_wdata                              (/* unused */),
-    .io_debug_csr_mcycle                              (/* unused */),
-    .io_debug_csr_minstret                            (/* unused */),
-    .io_debug_csr_mstatus                             (/* unused */),
-    .io_debug_csr_mie                                 (/* unused */),
-    .io_debug_csr_mtvec                               (/* unused */),
-    .io_debug_csr_mepc                                (/* unused */),
-    .io_debug_csr_mcause                              (/* unused */),
-    .io_debug_csr_mtval                               (/* unused */),
-    .io_debug_csr_mip                                 (/* unused */),
-    .io_debug_alu_out                                 (io_debug_exu2_alu_out),
-    .io_debug_alu_source1                             (io_debug_exu2_alu_source1),
-    .io_debug_alu_source2                             (io_debug_exu2_alu_source2),
-    .io_debug_agu_out                                 (io_debug_exu2_agu_out)
+  LSU lsu (
+    .io_lb        (_idu_io_is_lb),
+    .io_lh        (_idu_io_is_lh),
+    .io_lw        (_idu_io_is_lw),
+    .io_lbu       (_idu_io_is_lbu),
+    .io_lhu       (_idu_io_is_lhu),
+    .io_sb        (_idu_io_is_sb),
+    .io_sh        (_idu_io_is_sh),
+    .io_sw        (_idu_io_is_sw),
+    .io_addr      (_exu_io_agu_addr),
+    .io_wdata     (_exu_io_store_data),
+    .io_dmemAddr  (_lsu_io_dmemAddr),
+    .io_dmemWen   (_lsu_io_dmemWen),
+    .io_dmemWdata (_lsu_io_dmemWdata),
+    .io_dmemWmask (_lsu_io_dmemWmask),
+    .io_dmemRen   (_lsu_io_dmemRen),
+    .io_dmemRdata (_dataMem_rdata),
+    .io_rdata     (_lsu_io_rdata)
   );
-  LSU lsu1 (
-    .io_exu_to_lsu_op_is_lb                           (_exu1_io_exu_to_lsu_op_is_lb),
-    .io_exu_to_lsu_op_is_lh                           (_exu1_io_exu_to_lsu_op_is_lh),
-    .io_exu_to_lsu_op_is_lw                           (_exu1_io_exu_to_lsu_op_is_lw),
-    .io_exu_to_lsu_op_is_lbu                          (_exu1_io_exu_to_lsu_op_is_lbu),
-    .io_exu_to_lsu_op_is_lhu                          (_exu1_io_exu_to_lsu_op_is_lhu),
-    .io_exu_to_lsu_op_is_sb                           (_exu1_io_exu_to_lsu_op_is_sb),
-    .io_exu_to_lsu_op_is_sh                           (_exu1_io_exu_to_lsu_op_is_sh),
-    .io_exu_to_lsu_op_is_sw                           (_exu1_io_exu_to_lsu_op_is_sw),
-    .io_exu_to_lsu_op_is_ebreak                       (_exu1_io_exu_to_lsu_op_is_ebreak),
-    .io_exu_to_lsu_paddr_addr                         (_exu1_io_exu_to_lsu_paddr_addr),
-    .io_exu_to_lsu_data_store_data
-      (_exu1_io_exu_to_lsu_data_store_data),
-    .io_exu_to_lsu_exu_through_lsu_to_wbu_rd
-      (_exu1_io_exu_to_lsu_exu_through_lsu_to_wbu_rd),
-    .io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data
-      (_exu1_io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data),
-    .io_lsu_to_dmem_addr                              (_lsu1_io_lsu_to_dmem_addr),
-    .io_lsu_to_dmem_store_data                        (_lsu1_io_lsu_to_dmem_store_data),
-    .io_lsu_to_dmem_mask                              (_lsu1_io_lsu_to_dmem_mask),
-    .io_lsu_to_dmem_wen                               (_lsu1_io_lsu_to_dmem_wen),
-    .io_lsu_to_dmem_ren                               (_lsu1_io_lsu_to_dmem_ren),
-    .io_dmem_to_lsu_load_data                         (_dmem_io_dmem_to_lsu_1_load_data),
-    .io_lsu_to_wbu_rd                                 (_lsu1_io_lsu_to_wbu_rd),
-    .io_lsu_to_wbu_grf_wb_data                        (_lsu1_io_lsu_to_wbu_grf_wb_data),
-    .io_ebreak_out                                    (_lsu1_io_ebreak_out),
-    .io_debug_is_load                                 (io_debug_lsu1_is_load),
-    .io_debug_is_store                                (io_debug_lsu1_is_store),
-    .io_debug_addr                                    (io_debug_lsu1_addr),
-    .io_debug_read_origin                             (io_debug_lsu1_read_origin),
-    .io_debug_final_wb_data                           (io_debug_lsu1_final_wb_data),
-    .io_debug_store_mask                              (io_debug_lsu1_store_mask),
-    .io_debug_store_data_shifted                      (io_debug_lsu1_store_data_shifted)
-  );
-  LSU lsu2 (
-    .io_exu_to_lsu_op_is_lb                           (_exu2_io_exu_to_lsu_op_is_lb),
-    .io_exu_to_lsu_op_is_lh                           (_exu2_io_exu_to_lsu_op_is_lh),
-    .io_exu_to_lsu_op_is_lw                           (_exu2_io_exu_to_lsu_op_is_lw),
-    .io_exu_to_lsu_op_is_lbu                          (_exu2_io_exu_to_lsu_op_is_lbu),
-    .io_exu_to_lsu_op_is_lhu                          (_exu2_io_exu_to_lsu_op_is_lhu),
-    .io_exu_to_lsu_op_is_sb                           (_exu2_io_exu_to_lsu_op_is_sb),
-    .io_exu_to_lsu_op_is_sh                           (_exu2_io_exu_to_lsu_op_is_sh),
-    .io_exu_to_lsu_op_is_sw                           (_exu2_io_exu_to_lsu_op_is_sw),
-    .io_exu_to_lsu_op_is_ebreak                       (_exu2_io_exu_to_lsu_op_is_ebreak),
-    .io_exu_to_lsu_paddr_addr                         (_exu2_io_exu_to_lsu_paddr_addr),
-    .io_exu_to_lsu_data_store_data
-      (_exu2_io_exu_to_lsu_data_store_data),
-    .io_exu_to_lsu_exu_through_lsu_to_wbu_rd
-      (_exu2_io_exu_to_lsu_exu_through_lsu_to_wbu_rd),
-    .io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data
-      (_exu2_io_exu_to_lsu_exu_through_lsu_to_wbu_grf_wb_data),
-    .io_lsu_to_dmem_addr                              (_lsu2_io_lsu_to_dmem_addr),
-    .io_lsu_to_dmem_store_data                        (_lsu2_io_lsu_to_dmem_store_data),
-    .io_lsu_to_dmem_mask                              (_lsu2_io_lsu_to_dmem_mask),
-    .io_lsu_to_dmem_wen                               (_lsu2_io_lsu_to_dmem_wen),
-    .io_lsu_to_dmem_ren                               (_lsu2_io_lsu_to_dmem_ren),
-    .io_dmem_to_lsu_load_data                         (_dmem_io_dmem_to_lsu_2_load_data),
-    .io_lsu_to_wbu_rd                                 (_lsu2_io_lsu_to_wbu_rd),
-    .io_lsu_to_wbu_grf_wb_data                        (_lsu2_io_lsu_to_wbu_grf_wb_data),
-    .io_ebreak_out                                    (_lsu2_io_ebreak_out),
-    .io_debug_is_load                                 (io_debug_lsu2_is_load),
-    .io_debug_is_store                                (io_debug_lsu2_is_store),
-    .io_debug_addr                                    (io_debug_lsu2_addr),
-    .io_debug_read_origin                             (io_debug_lsu2_read_origin),
-    .io_debug_final_wb_data                           (io_debug_lsu2_final_wb_data),
-    .io_debug_store_mask                              (io_debug_lsu2_store_mask),
-    .io_debug_store_data_shifted                      (io_debug_lsu2_store_data_shifted)
-  );
-  wbu wbu (
-    .io_wbu_to_grf_wr1_addr      (_wbu_io_wbu_to_grf_wr1_addr),
-    .io_wbu_to_grf_wr1_data      (_wbu_io_wbu_to_grf_wr1_data),
-    .io_wbu_to_grf_wr2_addr      (_wbu_io_wbu_to_grf_wr2_addr),
-    .io_wbu_to_grf_wr2_data      (_wbu_io_wbu_to_grf_wr2_data),
-    .io_lsu_to_wbu_1_rd          (_lsu1_io_lsu_to_wbu_rd),
-    .io_lsu_to_wbu_1_grf_wb_data (_lsu1_io_lsu_to_wbu_grf_wb_data),
-    .io_lsu_to_wbu_2_rd          (_lsu2_io_lsu_to_wbu_rd),
-    .io_lsu_to_wbu_2_grf_wb_data (_lsu2_io_lsu_to_wbu_grf_wb_data),
-    .io_debug_valid1             (io_debug_wbu_valid1),
-    .io_debug_valid2             (io_debug_wbu_valid2),
-    .io_debug_conflict           (io_debug_wbu_conflict),
-    .io_debug_rd1                (io_debug_wbu_rd1),
-    .io_debug_rd2                (io_debug_wbu_rd2),
-    .io_debug_wr1_addr           (io_debug_wbu_wr1_addr),
-    .io_debug_wr2_addr           (io_debug_wbu_wr2_addr)
+  WBU wbu (
+    .io_is_lui         (_idu_io_is_lui),
+    .io_is_auipc       (_idu_io_is_auipc),
+    .io_is_jal         (_idu_io_is_jal),
+    .io_is_jalr        (_idu_io_is_jalr),
+    .io_is_lb          (_idu_io_is_lb),
+    .io_is_lh          (_idu_io_is_lh),
+    .io_is_lw          (_idu_io_is_lw),
+    .io_is_lbu         (_idu_io_is_lbu),
+    .io_is_lhu         (_idu_io_is_lhu),
+    .io_is_addi        (_idu_io_is_addi),
+    .io_is_slti        (_idu_io_is_slti),
+    .io_is_sltiu       (_idu_io_is_sltiu),
+    .io_is_xori        (_idu_io_is_xori),
+    .io_is_ori         (_idu_io_is_ori),
+    .io_is_andi        (_idu_io_is_andi),
+    .io_is_slli        (_idu_io_is_slli),
+    .io_is_srli        (_idu_io_is_srli),
+    .io_is_srai        (_idu_io_is_srai),
+    .io_is_add         (_idu_io_is_add),
+    .io_is_sub         (_idu_io_is_sub),
+    .io_is_sll         (_idu_io_is_sll),
+    .io_is_slt         (_idu_io_is_slt),
+    .io_is_sltu        (_idu_io_is_sltu),
+    .io_is_xor         (_idu_io_is_xor),
+    .io_is_srl         (_idu_io_is_srl),
+    .io_is_sra         (_idu_io_is_sra),
+    .io_is_or          (_idu_io_is_or),
+    .io_is_and         (_idu_io_is_and),
+    .io_inputfromALU   (_exu_io_alu_result),
+    .io_inputfromPC    (_ifu_io_pctogrf),
+    .io_inputfromRAM   (_lsu_io_rdata),
+    .io_inputfromAUIPC (_exu_io_alu_result),
+    .io_wbData         (_wbu_io_wbData),
+    .io_regWen         (_wbu_io_regWen),
+    .io_debug_regWen   (io_debug_regWen),
+    .io_debug_wbData   (io_debug_wbData)
   );
   GRF grf (
-    .clock                                   (clock),
-    .reset                                   (reset),
-    .io_idu_to_grf_dec1_redreg_rs1           (_idu_io_idu_to_grf_dec1_redreg_rs1),
-    .io_idu_to_grf_dec1_redreg_rs2           (_idu_io_idu_to_grf_dec1_redreg_rs2),
-    .io_idu_to_grf_dec2_redreg_rs1           (_idu_io_idu_to_grf_dec2_redreg_rs1),
-    .io_idu_to_grf_dec2_redreg_rs2           (_idu_io_idu_to_grf_dec2_redreg_rs2),
-    .io_grf_to_idu_dec1_value_inst1rs1_value
-      (_grf_io_grf_to_idu_dec1_value_inst1rs1_value),
-    .io_grf_to_idu_dec1_value_inst1rs2_value
-      (_grf_io_grf_to_idu_dec1_value_inst1rs2_value),
-    .io_grf_to_idu_dec2_value_inst2rs1_value
-      (_grf_io_grf_to_idu_dec2_value_inst2rs1_value),
-    .io_grf_to_idu_dec2_value_inst2rs2_value
-      (_grf_io_grf_to_idu_dec2_value_inst2rs2_value),
-    .io_wbu_to_grf_wr1_addr                  (_wbu_io_wbu_to_grf_wr1_addr),
-    .io_wbu_to_grf_wr1_data                  (_wbu_io_wbu_to_grf_wr1_data),
-    .io_wbu_to_grf_wr2_addr                  (_wbu_io_wbu_to_grf_wr2_addr),
-    .io_wbu_to_grf_wr2_data                  (_wbu_io_wbu_to_grf_wr2_data),
-    .io_csr_to_grf_wen                       (_exu1_io_csr_to_grf_wen),
-    .io_csr_to_grf_waddr                     (_exu1_io_csr_to_grf_waddr),
-    .io_csr_to_grf_wdata                     (_exu1_io_csr_to_grf_wdata),
-    .io_debug_regs_0                         (io_debug_grf_regs_0),
-    .io_debug_regs_1                         (io_debug_grf_regs_1),
-    .io_debug_regs_2                         (io_debug_grf_regs_2),
-    .io_debug_regs_3                         (io_debug_grf_regs_3),
-    .io_debug_regs_4                         (io_debug_grf_regs_4),
-    .io_debug_regs_5                         (io_debug_grf_regs_5),
-    .io_debug_regs_6                         (io_debug_grf_regs_6),
-    .io_debug_regs_7                         (io_debug_grf_regs_7),
-    .io_debug_regs_8                         (io_debug_grf_regs_8),
-    .io_debug_regs_9                         (io_debug_grf_regs_9),
-    .io_debug_regs_10                        (io_debug_grf_regs_10),
-    .io_debug_regs_11                        (io_debug_grf_regs_11),
-    .io_debug_regs_12                        (io_debug_grf_regs_12),
-    .io_debug_regs_13                        (io_debug_grf_regs_13),
-    .io_debug_regs_14                        (io_debug_grf_regs_14),
-    .io_debug_regs_15                        (io_debug_grf_regs_15),
-    .io_debug_rden                           (io_debug_grf_rden),
-    .io_debug_rdaddr                         (io_debug_grf_rdaddr),
-    .io_debug_input                          (io_debug_grf_input)
+    .clock            (clock),
+    .reset            (reset),
+    .io_rs1en         (_exu_io_rs1_en),
+    .io_rs1addr       (_exu_io_rs1_addr_out),
+    .io_rs1out        (_grf_io_rs1out),
+    .io_rs2en         (_exu_io_rs2_en),
+    .io_rs2addr       (_exu_io_rs2_addr_out),
+    .io_rs2out        (_grf_io_rs2out),
+    .io_rden          (_wbu_io_regWen),
+    .io_rdaddr        (_exu_io_rd_out),
+    .io_input         (_wbu_io_wbData),
+    .io_debug_regs_0  (io_debug_regs_0),
+    .io_debug_regs_1  (io_debug_regs_1),
+    .io_debug_regs_2  (io_debug_regs_2),
+    .io_debug_regs_3  (io_debug_regs_3),
+    .io_debug_regs_4  (io_debug_regs_4),
+    .io_debug_regs_5  (io_debug_regs_5),
+    .io_debug_regs_6  (io_debug_regs_6),
+    .io_debug_regs_7  (io_debug_regs_7),
+    .io_debug_regs_8  (io_debug_regs_8),
+    .io_debug_regs_9  (io_debug_regs_9),
+    .io_debug_regs_10 (io_debug_regs_10),
+    .io_debug_regs_11 (io_debug_regs_11),
+    .io_debug_regs_12 (io_debug_regs_12),
+    .io_debug_regs_13 (io_debug_regs_13),
+    .io_debug_regs_14 (io_debug_regs_14),
+    .io_debug_regs_15 (io_debug_regs_15),
+    .io_debug_rden    (io_debug_grf_rden),
+    .io_debug_rdaddr  (io_debug_grf_rdaddr),
+    .io_debug_input   (io_debug_grf_input)
   );
-  imem imem (
-    .clock                (clock),
-    .io_ifu_to_imem_addr1 (_ifu_io_ifu_to_imem_addr1),
-    .io_ifu_to_imem_addr2 (_ifu_io_ifu_to_imem_addr2),
-    .io_imem_to_ifu_inst1 (_imem_io_imem_to_ifu_inst1),
-    .io_imem_to_ifu_inst2 (_imem_io_imem_to_ifu_inst2)
+  DPI_Memory instMem (
+    .io_clk (clock),
+    .wen    (1'h0),
+    .waddr  (32'h0),
+    .wdata  (32'h0),
+    .wmask  (4'h0),
+    .ren    (1'h1),
+    .raddr  (_ifu_io_imemAddr),
+    .rdata  (_instMem_rdata),
+    .ebreak (_idu_io_is_ebreak)
   );
-  dmem dmem (
-    .clock                       (clock),
-    .io_dmem_to_lsu_1_load_data  (_dmem_io_dmem_to_lsu_1_load_data),
-    .io_dmem_to_lsu_2_load_data  (_dmem_io_dmem_to_lsu_2_load_data),
-    .io_lsu_to_dmem_1_addr       (_lsu1_io_lsu_to_dmem_addr),
-    .io_lsu_to_dmem_1_store_data (_lsu1_io_lsu_to_dmem_store_data),
-    .io_lsu_to_dmem_1_mask       (_lsu1_io_lsu_to_dmem_mask),
-    .io_lsu_to_dmem_1_wen        (_lsu1_io_lsu_to_dmem_wen),
-    .io_lsu_to_dmem_1_ren        (_lsu1_io_lsu_to_dmem_ren),
-    .io_lsu_to_dmem_2_addr       (_lsu2_io_lsu_to_dmem_addr),
-    .io_lsu_to_dmem_2_store_data (_lsu2_io_lsu_to_dmem_store_data),
-    .io_lsu_to_dmem_2_mask       (_lsu2_io_lsu_to_dmem_mask),
-    .io_lsu_to_dmem_2_wen        (_lsu2_io_lsu_to_dmem_wen),
-    .io_lsu_to_dmem_2_ren        (_lsu2_io_lsu_to_dmem_ren),
-    .io_ebreak                   (_lsu1_io_ebreak_out | _lsu2_io_ebreak_out)
+  DPI_Memory dataMem (
+    .io_clk (clock),
+    .wen    (_lsu_io_dmemWen),
+    .waddr  (_lsu_io_dmemAddr),
+    .wdata  (_lsu_io_dmemWdata),
+    .wmask  (_lsu_io_dmemWmask),
+    .ren    (_lsu_io_dmemRen),
+    .raddr  (_lsu_io_dmemAddr),
+    .rdata  (_dataMem_rdata),
+    .ebreak (_idu_io_is_ebreak)
   );
-  assign io_debug_mscratch = 32'h0;
-  assign io_debug_mvendorid = 32'h79737978;
-  assign io_debug_marchid = 32'h18A9E3B;
-  assign io_debug_mimpid = 32'h0;
-  assign io_debug_mhartid = 32'h0;
+  assign io_debug_alu_res = _exu_io_alu_result;
+  assign io_debug_is_add = _idu_io_is_add;
+  assign io_debug_is_addi = _idu_io_is_addi;
+  assign io_debug_is_jalr = _idu_io_is_jalr;
+  assign io_debug_is_lui = _idu_io_is_lui;
+  assign io_debug_is_lbu = _idu_io_is_lbu;
+  assign io_debug_is_lw = _idu_io_is_lw;
+  assign io_debug_is_sw = _idu_io_is_sw;
+  assign io_debug_is_sb = _idu_io_is_sb;
+  assign io_debug_is_ebreak = _idu_io_is_ebreak;
+  assign io_debug_lsu_addr = _lsu_io_dmemAddr;
+  assign io_debug_lsu_wen = _lsu_io_dmemWen;
+  assign io_debug_lsu_wdata = _lsu_io_dmemWdata;
+  assign io_debug_lsu_wmask = _lsu_io_dmemWmask;
+  assign io_debug_lsu_ren = _lsu_io_dmemRen;
+  assign io_debug_lsu_rdata = _dataMem_rdata;
 endmodule
 
