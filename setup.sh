@@ -7,13 +7,31 @@ echo "=== CPU Project Setup ==="
 echo ""
 
 NEED_INSTALL=""
+NEED_VERILATOR=0
+NEED_SBT=0
 
-check() {
-    if command -v "$1" &>/dev/null; then
-        echo "  [OK] $1"
+check_ver() {
+    local name="$1" cmd="$2" want="$3"
+    if ! command -v "$cmd" &>/dev/null; then
+        echo "  [MISS] $name"
+        NEED_INSTALL="$NEED_INSTALL $4"
+        [ -n "$5" ] && eval "$5=1"
+        return
+    fi
+    local ver=$($cmd --version 2>&1 | head -1 | grep -oP '(\d+\.\d+)' | head -1)
+    if [ -z "$ver" ]; then
+        echo "  [?]    $name (installed, version unknown)"
+        return
+    fi
+    # Compare major.minor
+    local major=$(echo "$ver" | cut -d. -f1)
+    local want_major=$(echo "$want" | cut -d. -f1)
+    if [ "$major" -lt "$want_major" ] 2>/dev/null; then
+        echo "  [OLD]  $name $ver (need $want+)"
+        NEED_INSTALL="$NEED_INSTALL $4"
+        [ -n "$5" ] && eval "$5=1"
     else
-        echo "  [MISS] $1"
-        NEED_INSTALL="$NEED_INSTALL $2"
+        echo "  [OK]   $name $ver"
     fi
 }
 
@@ -27,66 +45,46 @@ check_pkg() {
 }
 
 echo "--- System Tools ---"
-check java    openjdk-21-jdk
-check make    make
-check g++     g++
-check ccache  ccache
-check yosys   yosys
+check_ver "java"    java    11  openjdk-21-jdk
+check_ver "make"    make    ""  make
+check_ver "g++"     g++     ""  g++
+check_ver "yosys"   yosys   0.48 yosys
+check_ver "verilator" verilator 5.0 "help2man perl libfl-dev libgoogle-perftools-dev numactl" NEED_VERILATOR
+check_ver "sbt"     sbt     ""  "" NEED_SBT
+
 check_pkg libcapstone-dev
 check_pkg libreadline-dev
 
-if ! command -v verilator &>/dev/null; then
-    echo "  [MISS] verilator (will build from source)"
-    NEED_INSTALL="$NEED_INSTALL help2man perl libfl-dev libgoogle-perftools-dev numactl"
-fi
-
-if ! command -v sbt &>/dev/null; then
-    echo "  [MISS] sbt (will install via coursier)"
-fi
-
+# Install missing APT packages
 if [ -n "$NEED_INSTALL" ]; then
     echo ""
     echo "--- Installing system packages ---"
     sudo apt update
-    sudo apt install -y $NEED_INSTALL
+    sudo apt install -y $NEED_INSTALL 2>&1 | tail -3
 fi
 
-# Verilator
-if ! command -v verilator &>/dev/null; then
+# Build verilator 5.x if missing or too old
+if [ "$NEED_VERILATOR" = "1" ]; then
     echo ""
     echo "--- Building Verilator 5.046 ---"
-    [ -d /tmp/verilator ] || git clone --depth 1 --branch v5.046 https://github.com/verilator/verilator /tmp/verilator
+    if [ ! -d /tmp/verilator ]; then
+        git clone --depth 1 --branch v5.046 https://github.com/verilator/verilator /tmp/verilator
+    fi
     cd /tmp/verilator
-    autoconf && ./configure && make -j$(nproc) && sudo make install
+    autoconf
+    ./configure
+    make -j$(nproc)
+    sudo make install
     cd "$OLDPWD"
+    echo "  verilator $(verilator --version 2>&1 | head -1)"
 fi
 
-# sbt
-if ! command -v sbt &>/dev/null; then
+# Install sbt if missing
+if [ "$NEED_SBT" = "1" ]; then
     echo ""
     echo "--- Installing sbt ---"
     curl -fL https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz | gzip -d > /tmp/cs
     chmod +x /tmp/cs && /tmp/cs setup --yes && rm /tmp/cs
-fi
-
-# Yosys-STA: download iEDA + PDK if missing
-echo ""
-echo "--- Yosys-STA ---"
-if [ -d "yosys-sta" ]; then
-    if [ ! -f "yosys-sta/bin/iEDA" ]; then
-        echo "  [MISS] iEDA tool, downloading..."
-        make -C yosys-sta init 2>&1 | tail -5 || echo "  (skipped, may need SSH key)"
-    else
-        echo "  [OK] iEDA"
-    fi
-    if [ ! -d "yosys-sta/pdk/nangate45" ]; then
-        echo "  [MISS] PDK (nangate45), downloading..."
-        make -C yosys-sta init 2>&1 | tail -5 || echo "  (skipped, may need SSH key)"
-    else
-        echo "  [OK] PDK (nangate45)"
-    fi
-else
-    echo "  (no yosys-sta directory, skipped)"
 fi
 
 echo ""
