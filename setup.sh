@@ -33,6 +33,7 @@ check g++     g++
 check ccache  ccache
 check_pkg libcapstone-dev
 check_pkg libreadline-dev
+check yosys yosys
 
 if ! command -v verilator &>/dev/null; then
     echo "  [MISS] verilator (will build from source)"
