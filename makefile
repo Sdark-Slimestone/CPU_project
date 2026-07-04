@@ -370,6 +370,7 @@ endif
 	@echo "准备部署 CPU 核心: $(core)"
 	@echo "删除现有的 MyChisel/src/main ..."
 	@rm -rf MyChisel/src/main
+	@mkdir -p MyChisel/src
 	@echo "复制 cpu-core/$(core) 到 MyChisel/src/main ..."
 	@cp -r "cpu-core/$(core)" MyChisel/src/main
 	@echo "部署完成。现在可以运行 make genv 重新生成 Verilog。"
