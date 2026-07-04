@@ -72,7 +72,10 @@ check_cmd python3 python3
 
 # capstone
 check_pkg libcapstone-dev
-check_pkg capstone-tool
+# capstone-tool is optional (cstool CLI debugger), not required for compilation
+if ! dpkg -l capstone-tool &>/dev/null 2>&1; then
+    echo "  [可选缺失] capstone-tool (仅 cstool 命令行调试工具，不影响编译)"
+fi
 
 # readline (for nemu diff)
 check_pkg libreadline-dev
