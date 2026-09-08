@@ -368,14 +368,14 @@ endif
 		if [ "$$t" = "$(test)" ]; then needs_csr=1; break; fi; \
 	done; \
 	has_csr=0; \
-	case "$(core)" in *-csr) has_csr=1;; esac; \
+	case "$(core)" in *-csr|*-csr-*) has_csr=1;; esac; \
 	if [ "$$needs_csr" -eq 1 ] && [ "$$has_csr" -eq 0 ]; then \
 		echo "错误：测试 \"$(test)\" 需要 CSR 支持，核心 \"$(core)\" 不含 -csr 后缀"; \
 		echo "请使用带 csr 的核心，如 rv32e-csr 或 R1322IAe-csr"; \
 		exit 1; \
 	fi; \
 	core_ok=0; \
-	for c in rv32e rv32e-csr R1322IAe R1322IAe-csr; do \
+	for c in rv32e rv32e-csr R1322IAe R1322IAe-csr R1322IAe-csr-mulcycle; do \
 		if [ "$$c" = "$(core)" ]; then core_ok=1; break; fi; \
 	done; \
 	if [ "$$core_ok" -eq 0 ]; then \

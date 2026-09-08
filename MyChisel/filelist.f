@@ -5,6 +5,7 @@ decoder.sv
 idu.sv
 CSR.sv
 EXU.sv
+MemUnit.sv
 LSU.sv
 wbu.sv
 GRF.sv

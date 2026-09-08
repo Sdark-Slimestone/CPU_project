@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
     load_program(argv[1], MEM_BASE);
 
     // 加载 emu .so
-    void *so = dlopen("emu-so/rv32e/rv32e.so", RTLD_LAZY | RTLD_LOCAL);
+    void *so = dlopen("/home/sdark/cpu_project/emu-so/rv32e/rv32e.so", RTLD_LAZY | RTLD_LOCAL);
     if (!so) panic("[ERROR] dlopen: %s\n", dlerror());
     ref_init       = (difftest_init_t)dlsym(so, "difftest_init");
     ref_memcpy     = (difftest_memcpy_t)dlsym(so, "difftest_memcpy");

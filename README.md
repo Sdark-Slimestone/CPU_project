@@ -49,17 +49,6 @@ cpu_project/
 
 ## 各 CPU 核心一览
 
-所有核心均为单周期设计。各核心按功能阶段划分模块（IFU/取指、IDU/译码、EXU/执行、LSU/访存、WBU/写回、CSR），各阶段组合为单周期通路。
-
-| 核心名称 | ISA | 发射宽度 | 备注 |
-|----------|-----|---------|------|
-| `rv32e` | RV32E | 1 | 基础单发射单周期核心，无 CSR |
-| `rv32e-csr` | RV32E + Zicsr | 1 | 增加 CSR 模块，支持 ecall/ebreak/mret |
-| `R1322IAe` | RV32E | 2 (同构双发射) | 双发射单周期核心 |
-| `R1322IAe-csr` | RV32E + Zicsr | 2 (同构双发射) | 双发射 + CSR |
-| `R1322VA` | RV32E 变体 | — | 独立的 PPU / GRF 模块 |
-| `minirv` | RV32I | 1 | 早期版本 |
-| `scpu` | — | — | Verilog 简单核心 |
 
 ## 快速开始
 
