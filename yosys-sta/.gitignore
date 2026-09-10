@@ -2,3 +2,9 @@ bin/
 /pdk/
 result
 *.log
+
+# STA 生成的示例网表与额外结果目录
+result-singlecycle/
+example/*.v
+example/*.sv
+example/abc.sdc

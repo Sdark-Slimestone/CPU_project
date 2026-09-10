@@ -220,6 +220,19 @@ yosys-sta:  prepare-sta-src
 yosys-clean:
 	$(MAKE) -C "$(YOSYS_STA_DIR)" clean
 
+# 一键 STA 评估: 自动使用物理RAM版(RegisterFile)存储器, 结束后自动还原部署
+# 用法:
+#   make sta core=R1322IAe-csr           # 单周期
+#   make sta core=R1322IAe-csr-mulcycle  # 多周期
+# 产物: yosys-sta/result/<core>/{top.netlist.v, synth_stat.txt, sta.log, fmax.txt}
+# 前提: 核心 cpu-core/<core>/sta/ 下有 scala/{imem,dmem}.scala + resources/RegisterFile.v
+.PHONY: sta
+sta:
+ifndef core
+	$(error 错误：请指定 core 变量，例如 make sta core=R1322IAe-csr)
+endif
+	@bash sta.sh $(core)
+
 
 # ========== NPC 模拟器构建（重构版） ==========
 # 用法:

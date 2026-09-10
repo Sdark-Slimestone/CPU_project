@@ -1,11 +1,22 @@
-package R1322IAeCSRMC
+package R1322IAeCSR
 
 import chisel3._
 import chisel3.util._
 
+// ==================================================================
+// 【多周期新增区】总线层：级间消息定义 + 总线桥
+//  - core/ 目录下是 R1322IAe-csr 原版模块的逐字节镜像, 本文件开始的
+//    所有文件均为多周期新增逻辑
+//  - 原版模块在 top 中直接连线(与原版单周期 top 同构), 本部件
+//    "总线桥 BusBridge" 插在原版组合部件之间, 构成五级流水站:
+//      core/ifu(pcReg) -> [F/D桥] -> core/idu -> [D/E桥] -> core/exu
+//                      -> [E/M桥] -> core/lsu -> [M/W桥] -> core/wbu
+//  - 原版模块保持纯组合, 桥就是教科书上的 IF/ID、ID/EX、EX/MEM、MEM/WB 寄存器
+// ==================================================================
+
 // ========== 总线消息定义 ==========
 // 指令识别信号集合（与 decoder 的输出一一对应）
-class OpSig extends Bundle {
+class OpSignals extends Bundle {
   val is_lui    = Bool()
   val is_auipc  = Bool()
   val is_jal    = Bool()
@@ -56,7 +67,7 @@ class OpSig extends Bundle {
 }
 
 // IFU -> IDU 的取指包消息（双发射：一次传递两条指令）
-class IFMsg extends Bundle {
+class IFUToIDUMessage extends Bundle {
   val inst1         = UInt(32.W)
   val inst2         = UInt(32.W)
   val inst1_pc      = UInt(32.W)
@@ -66,15 +77,15 @@ class IFMsg extends Bundle {
 }
 
 // IDU -> EXU 的译码结果消息（两条指令的译码信息 + GRF 读出的操作数）
-class IDMsg extends Bundle {
-  val dec1_op      = new OpSig
+class IDUToEXUMessage extends Bundle {
+  val dec1_op      = new OpSignals
   val dec1_imm     = UInt(32.W)
   val dec1_rs1_val = UInt(32.W)
   val dec1_rs2_val = UInt(32.W)
   val dec1_nextpc  = UInt(32.W)
   val dec1_rd      = UInt(5.W)
 
-  val dec2_op      = new OpSig
+  val dec2_op      = new OpSignals
   val dec2_imm     = UInt(32.W)
   val dec2_rs1_val = UInt(32.W)
   val dec2_rs2_val = UInt(32.W)
@@ -89,7 +100,7 @@ class IDMsg extends Bundle {
 }
 
 // 访存操作信号集合
-class MemOp extends Bundle {
+class MemoryOpSignals extends Bundle {
   val is_lb  = Bool()
   val is_lh  = Bool()
   val is_lw  = Bool()
@@ -101,16 +112,16 @@ class MemOp extends Bundle {
 }
 
 // EXU -> LSU 的执行结果消息（双 lane：运算结果 + 访存请求）
-class EXMsg extends Bundle {
+class EXUToLSUMessage extends Bundle {
   // lane1: 第一条指令
-  val op1          = new MemOp
+  val op1          = new MemoryOpSignals
   val addr1        = UInt(32.W)
   val store_data1  = UInt(32.W)
   val rd1          = UInt(5.W)
   val wb_data1     = UInt(32.W)
 
   // lane2: 第二条指令（单发射时全部清零）
-  val op2          = new MemOp
+  val op2          = new MemoryOpSignals
   val addr2        = UInt(32.W)
   val store_data2  = UInt(32.W)
   val rd2          = UInt(5.W)
@@ -121,43 +132,44 @@ class EXMsg extends Bundle {
 }
 
 // LSU -> WBU 的写回消息
-class WBMsg extends Bundle {
+class LSUToWBUMessage extends Bundle {
   val rd1      = UInt(5.W)
   val wb_data1 = UInt(32.W)
   val rd2      = UInt(5.W)
   val wb_data2 = UInt(32.W)
 }
 
-// ========== 级间连接抽象 ==========
-// 通过修改 arch 即可在不同微结构之间切换:
-//   single   - 单周期: 消息组合逻辑直通, 不使用握手
-//   multi    - 多周期(分布式): 直接握手, 模块内部实现通信状态机, 一次在飞行中一个消息
-//   pipeline - 流水线: 级间插入寄存器, 每周期尝试向下游传递
-//   ooo      - 乱序: 级间插入队列, 上游只要队列不满即可继续工作
-object StageConnect {
-  final val arch = "multi"
+// ==================================================================
+// 【多周期新增部件】总线桥 BusBridge：插在原版组合部件之间的通用流水站
+//   1) 1 深度级寄存器(按消息类型参数化, 完全不感知消息内容)
+//   2) valid/ready 两状态机(空/满)
+//   3) 掩码机制(默认开启): 交出消息(out.fire 且无新消息)后寄存器清零,
+//      使原版组合部件在空闲拍看到无副作用数据——原版 EXU 的 CSR 写/
+//      csr_to_grf/异常/分支, 原版 LSU 的 dmem 写, 原版 wbu 的 GRF 写,
+//      因此每个包的副作用恰好生效一次, 无需任何 commit 门控
+//   4) 依赖不变量: 一次在飞行中最多一个取指包(IFU 等 done 才取指),
+//      各桥 valid 严格错开一拍, 下游桥永远就绪
+//   maskOnHandoff=false 变体(用于 F/D 桥): 交出后保持消息不掩码,
+//      供顶层 debug 显示"驻留包"(idu 为纯组合无副作用, 保持安全)
+// ==================================================================
+class BusBridge[T <: Data](gen: T, maskOnHandoff: Boolean = true) extends Module {
+  val io = IO(new Bundle {
+    val in  = Flipped(Decoupled(gen))   // <- 上游消息(IFU 或原版组合部件的输出)
+    val out = Decoupled(gen)            // -> 下游原版组合部件(其 fire 由下一座桥的 ready 提供)
+  })
 
-  def apply[T <: Data](left: DecoupledIO[T], right: DecoupledIO[T]): Unit = {
-    if      (arch == "single") {
-      right.bits := left.bits
-      right.valid := true.B
-      left.ready  := true.B
-    }
-    else if (arch == "multi") {
-      right <> left
-    }
-    else if (arch == "pipeline") {
-      val bitsReg = RegEnable(left.bits, left.fire)
-      val validReg = RegNext(left.fire, false.B)
-      right.bits  := bitsReg
-      right.valid := validReg
-      left.ready  := right.ready
-    }
-    else if (arch == "ooo") {
-      right <> Queue(left, 16)
-    }
-    else {
-      throw new IllegalArgumentException(s"unknown arch: $arch")
-    }
+  val bridgeReg   = Reg(gen)              // 1 深度消息寄存器
+  val bridgeValid = RegInit(false.B)      // 满/空状态机
+
+  io.in.ready  := !bridgeValid
+  io.out.valid := bridgeValid
+  io.out.bits  := bridgeReg
+
+  when (io.in.fire) {
+    bridgeReg   := io.in.bits
+    bridgeValid := true.B
+  } .elsewhen (io.out.fire) {
+    bridgeReg   := (if (maskOnHandoff) 0.U.asTypeOf(gen) else bridgeReg)  // 掩码: 交出后清零
+    bridgeValid := false.B
   }
 }

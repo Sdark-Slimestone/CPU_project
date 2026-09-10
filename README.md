@@ -2,7 +2,11 @@
 
 基于 Chisel + Verilator 的 RISC-V CPU 设计与验证工程，支持从 Chisel 源码生成 Verilog，并通过多种方式进行仿真验证：Verilator NPC 仿真、NVBoard FPGA 仿真、ISA 模拟器对比、以及 NEMU diff 对比测试。
 
-所有 CPU 核心均为**单周期**设计。
+核心分为**单周期**与**多周期（总线握手）**两类：
+
+- **单周期**：每个周期完成一条指令（部分核心双发射）。
+- **多周期**：指令按 F→D→E→M→W 五级流动，级间用 `Decoupled`（`valid`/`ready`）握手总线连接，
+  每包固定 5 周期。当前有 `R1322IAe-csr-mulcycle` 与 `R1322IAe-csr-multicycle` 两个多周期核。
 
 ## 目录结构
 
@@ -12,11 +16,13 @@ cpu_project/
 ├── autonv.py                   # 自动生成 NVBoard 引脚绑定文件
 ├── sv2v                        # SystemVerilog → Verilog 转换工具
 │
-├── cpu-core/                   # 各个 CPU 核心源码（独立子文件夹）
-│   ├── rv32e/                  # RV32E 单发射
-│   ├── rv32e-csr/              # RV32E + CSR (Zicsr)，单发射
-│   ├── R1322IAe/               # 同构双发射 RV32E
-│   ├── R1322IAe-csr/           # 同构双发射 RV32E + CSR (Zicsr)
+├── cpu-core/                   # 各个 CPU 核心源码（独立子文件夹，格式见下文）
+│   ├── rv32e/                  # RV32E 单发射，单周期
+│   ├── rv32e-csr/              # RV32E + CSR (Zicsr)，单发射，单周期
+│   ├── R1322IAe/               # 同构双发射 RV32E，单周期
+│   ├── R1322IAe-csr/           # 同构双发射 RV32E + CSR (Zicsr)，单周期
+│   ├── R1322IAe-csr-mulcycle/  # 同构双发射 + CSR，多周期（总线桥式）
+│   ├── R1322IAe-csr-multicycle/# 同构双发射 + CSR，多周期（Decoupled 总线重构版）
 │   ├── R1322VA/                # R1322VA 架构模块 (PPU, GRF)
 │   ├── minirv/                 # 早期 RV32I 核心
 │   └── scpu/                   # Verilog 简单 CPU
@@ -49,6 +55,44 @@ cpu_project/
 
 ## 各 CPU 核心一览
 
+| 核心 | 架构 | 发射 | 微结构 | 说明 |
+|---|---|---|---|---|
+| `rv32e` | RV32E | 单发射 | 单周期 | 最小核心 |
+| `rv32e-csr` | RV32E + Zicsr | 单发射 | 单周期 | 支持 CSR / 异常 |
+| `R1322IAe` | RV32E | 双发射 | 单周期 | 同构双发射 |
+| `R1322IAe-csr` | RV32E + Zicsr | 双发射 | 单周期 | 双发射 + CSR |
+| `R1322IAe-csr-mulcycle` | RV32E + Zicsr | 双发射 | 多周期 | 总线桥式分布式多周期 |
+| `R1322IAe-csr-multicycle` | RV32E + Zicsr | 双发射 | 多周期 | `Decoupled` 总线重构版 |
+| `R1322VA` | — | — | — | 架构模块 (PPU, GRF) |
+| `minirv` | RV32I | 单发射 | 单周期 | 早期核心 |
+| `scpu` | — | — | — | Verilog 简单 CPU |
+
+## 标准核心文件夹格式
+
+每个核心放在 `cpu-core/<核心名>/`，标准结构如下：
+
+```
+cpu-core/<核心名>/
+├── scala/                          # Chisel 源码，顶层类必须命名为 top
+│   └── *.scala
+├── cppfile/                        # NPC 仿真 C++ 主程序
+│   ├── sim_main_io.cpp             # sim=no
+│   ├── sim_main_io_sdb.cpp         # sim=sdb
+│   ├── sim_main_io_sdb_diff.cpp    # sim=diff
+│   └── sim_main_io_sdb_diff2.cpp   # sim=diff2
+├── resources/
+│   └── DPI_Memory.v                # DPI-C 双端口存储器
+├── npc-core/                       # 构建产物：make npc 生成的可执行文件
+└── sta/                            # 可选：STA 评估用的物理 RAM 版存储器
+    ├── scala/{imem,dmem}.scala
+    └── resources/RegisterFile.v
+```
+
+要点：
+- `make deploy-core core=<核心名>` 会把整个 `cpu-core/<核心名>/` 复制到 `MyChisel/src/main/`，再 `make genv` 生成 Verilog。
+- `scala/` 支持两种布局：扁平（`scala/*.scala`）或分子目录（如 `scala/core/`），sbt 递归编译，两者都能用。
+- 顶层类名必须是 `top`，`make genv` 才会生成 `top.sv`。
+- 只有带 `sta/` 的核心才能 `make sta core=<核心名>`（用触发器阵列 `RegisterFile` 替换 DPI 软件 RAM 做时序评估）。
 
 ## 快速开始
 
@@ -152,15 +196,29 @@ make yosys-sta             # 静态时序 + 功耗分析
 make yosys-sta CLK_FREQ_MHZ=600  # 自定义频率
 ```
 
-结果输出到 `yosys-sta/result/top-500MHz/`。
+**一键 STA（按核心，推荐）**：自动用物理 RAM 版存储器（`RegisterFile`）替换 DPI 软件 RAM，
+综合 + iSTA 后自动还原部署；iEDA 时序报告生成后由看门狗自动结束，防止卡死。
+
+```bash
+make sta core=R1322IAe-csr              # 单周期
+make sta core=R1322IAe-csr-mulcycle     # 多周期
+make sta core=R1322IAe-csr-multicycle   # 多周期(总线重构版)
+```
+
+结果输出到 `yosys-sta/result/<core>/`（含 `fmax.txt`、`sta.log`、`synth_stat.txt`）。
+详细对比见 `STA-对比报告.md`。
 
 ## 编写新的 Chisel 电路
+
+按"标准核心文件夹格式"组织，然后：
 
 1. 在 `cpu-core/<your_core>/scala/` 下编写 `.scala` 文件，顶层模块命名为 `top`
 2. 将 C++ 仿真文件放入 `cpu-core/<your_core>/cppfile/`
 3. DPI 相关资源放入 `cpu-core/<your_core>/resources/`
 4. 使用 `make deploy-core core=<your_core>` 部署
 5. 使用 `make genv` 生成 Verilog
+6. 使用 `make npc core=<your_core> sim=<no|sdb|diff|diff2>` 构建 NPC 并仿真
+7. （可选）添加 `sta/` 目录后，`make sta core=<your_core>` 评估时序/面积
 
 ## 环境依赖
 

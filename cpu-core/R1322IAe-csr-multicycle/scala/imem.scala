@@ -1,4 +1,4 @@
-package R1322IAeCSRMC
+package R1322IAeCSR
 
 import chisel3._
 import chisel3.util._
