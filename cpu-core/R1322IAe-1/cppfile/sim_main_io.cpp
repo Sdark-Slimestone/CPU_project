@@ -1,0 +1,68 @@
+#include <verilated.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <chrono>
+#include "Vtop.h"
+
+#define MEM_BASE 0x80000000
+#define MEM_SIZE (128*1024*1024)
+
+static unsigned char mem[MEM_SIZE];
+static int sim_finished = 0, good_trap = 0;
+static auto boot = std::chrono::steady_clock::now();
+
+static uint64_t get_us() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - boot).count();
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+unsigned int pmem_read(unsigned int addr) {
+    if (addr == 0xa0000048) return (unsigned int)get_us();
+    if (addr == 0xa000004c) return (unsigned int)(get_us() >> 32);
+    if (addr < MEM_BASE) return 0;
+    unsigned int base = addr & ~3, off = base - MEM_BASE;
+    if (off + 3 >= MEM_SIZE) { sim_finished = 1; good_trap = 0; return 0; }
+    return (mem[off+3]<<24)|(mem[off+2]<<16)|(mem[off+1]<<8)|mem[off];
+}
+void pmem_write(unsigned int addr, unsigned int data, unsigned char mask) {
+    if (addr == 0xa00003f8) { if (mask & 1) putchar(data & 0xFF); fflush(stdout); return; }
+    if (addr < MEM_BASE) return;
+    unsigned int base = addr & ~3, off = base - MEM_BASE;
+    if (off + 3 >= MEM_SIZE) { sim_finished = 1; good_trap = 0; return; }
+    for (int i = 0; i < 4; i++) if (mask & (1<<i)) mem[off + i] = (data >> (i*8)) & 0xFF;
+}
+void sim_finish(void) { sim_finished = 1; good_trap = 1; }
+#ifdef __cplusplus
+}
+#endif
+
+int main(int argc, char **argv) {
+    Verilated::commandArgs(argc, argv);
+    memset(mem, 0, MEM_SIZE);
+    if (argc < 2) { printf("Usage: %s <program.bin>\n", argv[0]); return 1; }
+    FILE *f = fopen(argv[1], "rb");
+    if (!f) { printf("[ERROR] Cannot open %s\n", argv[1]); return 1; }
+    fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
+    fread(&mem[0], 1, sz, f); fclose(f);
+
+    Vtop *top = new Vtop;
+    top->reset = 1;
+    top->clock = 0; top->eval();
+    top->clock = 1; top->eval();
+    top->reset = 0;
+    top->clock = 0; top->eval();
+
+    unsigned long long cycle = 0;
+    while (!sim_finished && !Verilated::gotFinish()) {
+        top->clock = 0; top->eval();
+        top->clock = 1; top->eval();
+        cycle++;
+    }
+    printf("[INFO] Finished %llu cycles  %s\n", cycle, good_trap?"HIT GOOD TRAP":"HIT BAD TRAP");
+    delete top;
+    return 0;
+}

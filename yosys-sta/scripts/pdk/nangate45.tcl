@@ -1,5 +1,5 @@
 set FOUNDARY_PATH           "$PROJ_HOME/pdk/nangate45"
-set LIB_FILES               [list "$FOUNDARY_PATH/lib/Nangate45_typ.lib"]
+set LIB_FILES               [list "$FOUNDARY_PATH/lib/Nangate45_typ.lib" "$FOUNDARY_PATH/lib/fakeram45_256x34.lib" "$FOUNDARY_PATH/lib/fakeram45_2r1w_256x32.lib" "$FOUNDARY_PATH/lib/fakeram45_64x7.lib" "$FOUNDARY_PATH/lib/fakeram45_64x96.lib"]
 set STDCELL_LEF_FILES       [list "$FOUNDARY_PATH/lef/Nangate45_stdcell.lef"]
 set TECH_LEF_FILE           "$FOUNDARY_PATH/lef/Nangate45_tech.lef"
 set BLACKBOX_V_FILE         "$FOUNDARY_PATH/verilog/blackbox.v"

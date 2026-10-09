@@ -258,12 +258,14 @@ SIM_CPP_no    = sim_main_io.cpp
 SIM_CPP_sdb   = sim_main_io_sdb.cpp
 SIM_CPP_diff  = sim_main_io_sdb_diff.cpp
 SIM_CPP_diff2 = sim_main_io_sdb_diff2.cpp
+SIM_CPP_prof  = sim_main_io_prof.cpp
 
 # sim 参数 -> 输出二进制名
 SIM_BIN_no    = npc
 SIM_BIN_sdb   = npc-sdb
 SIM_BIN_diff  = npc-diff
 SIM_BIN_diff2 = npc-diff2
+SIM_BIN_prof  = npc-prof
 
 # sim 参数 -> 额外的 Verilator 编译/链接 flags
 SIM_EXTRA_FLAGS_no    =
@@ -272,6 +274,7 @@ SIM_EXTRA_FLAGS_diff  = --CFLAGS "-I$(CAP_DIR)/include -I$(NEMU_INC)" \
 	--LDFLAGS "-L$(CAP_DIR) -lcapstone -Wl,-rpath,$(CAP_DIR) $(NEMU_LIB) -lreadline -Wl,-rpath,/home/sdark/ysyx-workbench/nemu/build"
 SIM_EXTRA_FLAGS_diff2 = --CFLAGS "-I$(CAP_DIR)/include" \
 	--LDFLAGS "-L$(CAP_DIR) -lcapstone -Wl,-rpath,$(CAP_DIR) -ldl"
+SIM_EXTRA_FLAGS_prof  =
 
 # ========== ISA 模拟器 .so 构建（emuso） ==========
 # 用法:
@@ -332,7 +335,7 @@ endif
 	echo "=== 部署核心: $(core) ==="; \
 	$(MAKE) deploy-core core=$(core); \
 	echo "=== 生成 Verilog ==="; \
-	$(MAKE) genv; \
+	$(MAKE) genv || { echo "错误：genv 失败（检查上面的 sbt 编译错误）"; exit 1; }; \
 	echo "=== 准备 NPC 构建（sim=$(sim)） ==="; \
 	mkdir -p $(NPC_TEMP_DIR); \
 	cp $(CHISEL_DIR)/src/main/resources/DPI_Memory.v $(CHISEL_VERILOG_DIR)/; \
@@ -364,9 +367,10 @@ endif
 # 用法: make npctest core=rv32e-csr test=yield-os
 #       make npctest core=rv32e-csr test=microbench
 #       make npctest core=rv32e-csr test=alutest
-# 可选手动指定 npcbin（默认自动在 npc-core 目录查找含 npc 的可执行文件）
+# 可选: im=1     使用 RV32IM 版测试二进制 (<test>-riscv32im-npc.bin, 默认 rv32e)
+#       npcbin=.. 手动指定 npc-core 下的可执行文件名
 # 注意: microbench 会自动传入 test 参数进行 mainargs 占位符替换
-# 注意: yield-os 和 rtthread 需要 CSR 支持（核心名须含 -csr）
+# 注意: yield-os 和 rtthread 需要 CSR 支持（核心名须含 -csr / R1322IAe-N）
 .PHONY: npctest
 npctest:
 ifndef core
@@ -381,22 +385,24 @@ endif
 		if [ "$$t" = "$(test)" ]; then needs_csr=1; break; fi; \
 	done; \
 	has_csr=0; \
-	case "$(core)" in *-csr|*-csr-*) has_csr=1;; esac; \
+	case "$(core)" in *-csr|*-csr-*|R1322IAe-1|R1322IAe-2|R1322IAe-3|R1322IAe-4|R1322IAe-5|R1322IAe-6) has_csr=1;; esac; \
 	if [ "$$needs_csr" -eq 1 ] && [ "$$has_csr" -eq 0 ]; then \
 		echo "错误：测试 \"$(test)\" 需要 CSR 支持，核心 \"$(core)\" 不含 -csr 后缀"; \
 		echo "请使用带 csr 的核心，如 rv32e-csr 或 R1322IAe-csr"; \
 		exit 1; \
 	fi; \
 	core_ok=0; \
-	for c in rv32e rv32e-csr R1322IAe R1322IAe-csr R1322IAe-csr-mulcycle; do \
+	for c in rv32e rv32e-csr R1322IAe R1322IAe-csr R1322IAe-csr-mulcycle R1322IAe-csr-multicycle R1322IAe-csr-multicycle-3 R1322IAe-1 R1322IAe-2 R1322IAe-3 R1322IAe-4 R1322IAe-5 R1322IAe-6; do \
 		if [ "$$c" = "$(core)" ]; then core_ok=1; break; fi; \
 	done; \
 	if [ "$$core_ok" -eq 0 ]; then \
-		echo "错误：核心 \"$(core)\" 不支持 npc 测试。支持的 core: rv32e, rv32e-csr, R1322IAe, R1322IAe-csr"; \
+		echo "错误：核心 \"$(core)\" 不支持 npc 测试。支持的 core: rv32e, rv32e-csr, R1322IAe, R1322IAe-csr, R1322IAe-csr-mulcycle, R1322IAe-csr-multicycle, R1322IAe-csr-multicycle-3, R1322IAe-1, R1322IAe-2, R1322IAe-3, R1322IAe-4, R1322IAe-5, R1322IAe-6"; \
 		exit 1; \
 	fi; \
 $(if $(npcbin),npc_path="$$npc_dir/$(npcbin)",npc_path=$$(ls $$npc_dir/npc* 2>/dev/null | head -1)); \
-	test_path="test-benchmarks/$(test)/$(test)-riscv32e-npc.bin"; \
+	arch_suffix="riscv32e-npc"; \
+	if [ "$(im)" = "1" ]; then arch_suffix="riscv32im-npc"; fi; \
+	test_path="test-benchmarks/$(test)/$(test)-$$arch_suffix.bin"; \
 	mainargs=""; \
 	if [ "$(test)" = "microbench" ]; then \
 		mainargs="test"; \

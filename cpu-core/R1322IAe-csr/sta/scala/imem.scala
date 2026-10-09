@@ -3,28 +3,21 @@ package R1322IAeCSR
 import chisel3._
 import chisel3.util._
 
-// 寄存器阵列存储器黑盒 (Verilog 实现见 sta/resources/RegisterFile.v)
-// 256x32b 触发器阵列, 1个写字节使能端口 + 2个组合读端口, 当前周期返回读数据
-// (参考讲义"评估单周期NPC的主频": 像寄存器堆那样通过触发器实现存储器)
-// 仅用于 make sta 综合评估, 不参与日常 npc 构建 (日常构建用 DPI-C 软件RAM版)
-class RegisterFile extends BlackBox {
+// 单端口同步 SRAM 宏黑盒 (时序/面积见 pdk/nangate45/lib/fakeram45_256x34.lib)
+class fakeram45_256x34 extends BlackBox {
   val io = IO(new Bundle {
-    val io_clk = Input(Clock())
-    val wen    = Input(Bool())
-    val waddr  = Input(UInt(8.W))
-    val wdata  = Input(UInt(32.W))
-    val wmask  = Input(UInt(4.W))
-    val raddr1 = Input(UInt(8.W))
-    val rdata1 = Output(UInt(32.W))
-    val raddr2 = Input(UInt(8.W))
-    val rdata2 = Output(UInt(32.W))
+    val clk       = Input(Clock())
+    val addr_in   = Input(UInt(8.W))
+    val wd_in     = Input(UInt(34.W))
+    val w_mask_in = Input(UInt(34.W))
+    val we_in     = Input(Bool())
+    val ce_in     = Input(Bool())
+    val rd_out    = Output(UInt(34.W))
   })
-  override def desiredName = "RegisterFile"
+  override def desiredName = "fakeram45_256x34"
 }
 
-// 指令存储器，双端口读（支持双发射取指）
-// STA 评估版: 用 RegisterFile 寄存器阵列替换 DPI-C 的 pmem_read() 访问,
-// 组合读、当前周期返回数据, 以保持单周期特性; I/O 相关部分(ebreak 等)忽略
+// 指令存储器 (STA SRAM 版): 双端口读, 2 个 fakeram45 同步 SRAM 宏 (每槽一份)。
 class imem extends Module {
   val io = IO(new Bundle {
     val ifu_to_imem = new Bundle {
@@ -37,22 +30,18 @@ class imem extends Module {
     }
   })
 
-  val register_file = Module(new RegisterFile)
-  register_file.io.io_clk := clock
+  val mem1 = Module(new fakeram45_256x34)
+  val mem2 = Module(new fakeram45_256x34)
 
-  // 程序加载写端口(讲义中 RegisterFile 的写口): 由一个与数据通路无关的
-  // 自由运行加载计数器驱动, 综合器无法把该写使能折叠成常数, 从而保留
-  // 真实的触发器阵列 (否则无写端口的存储器会被综合优化掉, 讲义也指出了这一点)
-  val load_counter = RegInit(0.U(8.W))
-  load_counter := load_counter + 1.U
-  register_file.io.wen   := load_counter === "hFF".U(8.W)
-  register_file.io.waddr := load_counter
-  register_file.io.wdata := 0.U
-  register_file.io.wmask := "b1111".U(4.W)
+  for ((m, a) <- Seq((mem1, io.ifu_to_imem.addr1), (mem2, io.ifu_to_imem.addr2))) {
+    m.io.clk       := clock
+    m.io.addr_in   := a(9, 2)
+    m.io.wd_in     := 0.U
+    m.io.w_mask_in := 0.U
+    m.io.we_in     := false.B
+    m.io.ce_in     := true.B
+  }
 
-  // 组合读: 两个读端口
-  register_file.io.raddr1 := io.ifu_to_imem.addr1(9, 2)
-  register_file.io.raddr2 := io.ifu_to_imem.addr2(9, 2)
-  io.imem_to_ifu.inst1 := register_file.io.rdata1
-  io.imem_to_ifu.inst2 := register_file.io.rdata2
+  io.imem_to_ifu.inst1 := mem1.io.rd_out(31, 0)
+  io.imem_to_ifu.inst2 := mem2.io.rd_out(31, 0)
 }

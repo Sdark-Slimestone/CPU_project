@@ -6,10 +6,19 @@
 set -u
 
 CORE="${1:-}"
+PDK="${2:-${PDK:-nangate45}}"
 PROJ="$(cd "$(dirname "$0")" && pwd)"
 STA_DIR="$PROJ/yosys-sta"
 MYCHISEL="$PROJ/MyChisel"
 CORE_DIR="$PROJ/cpu-core/$CORE"
+# 覆盖目录 + 结果后缀: nangate45 用 sta/scala (SRAM宏版); asap7 用 sta/asap7 (RegisterFile版)
+if [ "$PDK" = "asap7" ]; then
+  OVR_DIR="$CORE_DIR/sta/asap7"; PDK_SUFFIX="-asap7"
+else
+  OVR_DIR="$CORE_DIR/sta/scala"; PDK_SUFFIX=""
+fi
+# 综合脚本: 默认精简流程(防折叠); 可 YOSYS_SCRIPT=yosys.tcl 切换标准流程
+YOSYS_SCRIPT="${YOSYS_SCRIPT:-yosys_min.tcl}"
 export PATH="$HOME/oss-cad-suite/oss-cad-suite/bin:$PATH"
 
 die() { echo "错误: $*"; exit 1; }
@@ -17,8 +26,8 @@ die() { echo "错误: $*"; exit 1; }
 # ---------- 前置检查 ----------
 [ -n "$CORE" ] || die "用法: bash sta.sh <核心名>"
 [ -d "$CORE_DIR" ] || die "核心目录 $CORE_DIR 不存在"
-[ -f "$CORE_DIR/sta/scala/imem.scala" ] && [ -f "$CORE_DIR/sta/scala/dmem.scala" ] \
-  || die "核心 $CORE 缺少 sta/scala/{imem,dmem}.scala (STA物理RAM版存储器)"
+[ -f "$OVR_DIR/imem.scala" ] && [ -f "$OVR_DIR/dmem.scala" ] \
+  || die "核心 $CORE 缺少 $OVR_DIR/{imem,dmem}.scala (STA 存储器版, PDK=$PDK)"
 [ -f "$CORE_DIR/sta/resources/RegisterFile.v" ] || die "核心 $CORE 缺少 sta/resources/RegisterFile.v"
 [ -x "$PROJ/sv2v" ] || die "sv2v 工具 $PROJ/sv2v 不存在"
 [ -f "$STA_DIR/bin/iEDA" ] || die "iEDA 不存在, 请先运行 make -C yosys-sta init"
@@ -43,10 +52,11 @@ if [ -d "$MYCHISEL/src/main/scala/core" ]; then
 else
   MEM_SCALA_DIR="$MYCHISEL/src/main/scala"
 fi
-echo "    存储器源文件目标: $MEM_SCALA_DIR"
-cp "$CORE_DIR/sta/scala/imem.scala" "$MEM_SCALA_DIR/imem.scala"
-cp "$CORE_DIR/sta/scala/dmem.scala" "$MEM_SCALA_DIR/dmem.scala"
-cp "$CORE_DIR/sta/resources/RegisterFile.v" "$MYCHISEL/src/main/resources/RegisterFile.v"
+echo "    存储器源文件目标: $MEM_SCALA_DIR (来自 $OVR_DIR)"
+for f in "$OVR_DIR/"*.scala; do
+  cp "$f" "$MEM_SCALA_DIR/$(basename "$f")"
+done
+cp "$CORE_DIR/sta/resources/"*.v "$MYCHISEL/src/main/resources/"
 # firtool 降低选项: 避免 always 块内 automatic 声明 (幂等, 还原部署时自动恢复)
 sed -i 's|firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info", "-default-layer-specialization=enable")|firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info", "-default-layer-specialization=enable", "--lowering-options=disallowLocalVariables")|' \
   "$MYCHISEL/src/main/scala/top.scala" 2>/dev/null || true
@@ -55,31 +65,31 @@ sed -i 's|firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info",
 echo "=== STA: 生成 Verilog (sbt+firtool) ==="
 rm -f "$MYCHISEL"/verilog/*.sv
 make -C "$PROJ" genv >/dev/null 2>&1 || true
-grep -q "RegisterFile" "$MYCHISEL/verilog/imem.sv" || die "Verilog 生成失败(imem.sv 中未找到 RegisterFile), 检查 sbt 日志"
+grep -qE "RegisterFile|fakeram45" "$MYCHISEL/verilog/imem.sv" || die "Verilog 生成失败(imem.sv 中未找到存储器), 检查 sbt 日志"
 [ -f "$MYCHISEL/verilog/top.sv" ] || die "Verilog 生成失败(top.sv 不存在)"
 
 # ---------- 4) sv2v 转换 ----------
 echo "=== STA: sv2v 转换 ==="
 rm -f "$STA_DIR"/example/*.v "$STA_DIR"/example/*.sv
 cp "$MYCHISEL"/verilog/*.sv "$STA_DIR/example/"
-cp "$MYCHISEL"/verilog/RegisterFile.v "$STA_DIR/example/"
+cp "$CORE_DIR/sta/resources/"*.v "$STA_DIR/example/"
 for f in "$STA_DIR"/example/*.sv; do
   "$PROJ/sv2v" "$f" > "${f%.sv}.v" && rm -f "$f"
 done
 
 # ---------- 5) yosys 精简综合 ----------
-RESULT="$STA_DIR/result/$CORE"
+RESULT="$STA_DIR/result/${CORE}${PDK_SUFFIX}"
 rm -rf "$RESULT"; mkdir -p "$RESULT"
-echo "=== STA: yosys 精简综合 (abc 阶段可能需要 5~20 分钟) ==="
+echo "=== STA: yosys 综合 (PDK=$PDK, 脚本=$YOSYS_SCRIPT, abc 阶段可能需要 5~20 分钟) ==="
 cd "$STA_DIR"
-echo "tcl scripts/yosys_min.tcl top nangate45 \"$(echo "$STA_DIR"/example/*.v)\" $RESULT/top.netlist.v" \
+echo "tcl scripts/$YOSYS_SCRIPT top $PDK \"$(echo "$STA_DIR"/example/*.v)\" $RESULT/top.netlist.v" \
   | yosys -g -l "$RESULT/yosys.log" -s - > "$RESULT/yosys-stdout.log" 2>&1
 [ -f "$RESULT/top.netlist.v" ] || die "综合失败, 见 $RESULT/yosys.log"
 
 # ---------- 6) iSTA 时序分析 ----------
 echo "=== STA: iSTA 时序分析 (检测到时序报告后自动结束 iEDA, 防卡死) ==="
 CLK_FREQ_MHZ=100 CLK_PORT_NAME=clock "$STA_DIR/bin/iEDA" -script "$STA_DIR/scripts/sta.tcl" \
-  "$STA_DIR/scripts/default.sdc" "$RESULT/top.netlist.v" top nangate45 \
+  "$STA_DIR/scripts/default.sdc" "$RESULT/top.netlist.v" top "$PDK" \
   > "$RESULT/sta.log" 2>&1 &
 IEDA_PID=$!
 
@@ -106,9 +116,14 @@ wait "$IEDA_PID" 2>/dev/null || true
 # 按竖线分列后: $5=PathDelay, $8=Slack, $9=Freq
 FMAX=$(grep -E '\| core_clock' "$RESULT/sta.log" | grep ' max ' | head -1 | awk -F'|' '{gsub(/ /,"",$9); print $9}')
 PATHDELAY=$(grep -E '\| core_clock' "$RESULT/sta.log" | grep ' max ' | head -1 | awk -F'|' '{gsub(/ /,"",$5); print $5}')
-DFFCOUNT=$(grep 'DFF_X1' "$RESULT/synth_stat.txt" | awk '{print $1}')
+DFFCOUNT=$(grep -iE 'DFF' "$RESULT/synth_stat.txt" | awk '{s+=$1} END{print s+0}')
 CELLCOUNT=$(grep -E '^\s+[0-9]+\s+[0-9.eE+]+\s+cells$' "$RESULT/synth_stat.txt" | awk '{print $1}')
 CHIPAREA=$(grep 'Chip area' "$RESULT/synth_stat.txt" | awk '{print $NF}')
+# ASAP7 库 time_unit=1ps (nangate45 是 1ns); iEDA 按 ns 解读 -> fmax ×1000, 路径延迟 /1000
+if [ "$PDK" = "asap7" ]; then
+  [ -n "$FMAX" ] && FMAX=$(awk "BEGIN{printf \"%.1f\", $FMAX*1000}")
+  [ -n "$PATHDELAY" ] && PATHDELAY=$(awk "BEGIN{printf \"%.4f\", ${PATHDELAY%[a-z]}/1000}")ns
+fi
 
 echo "$FMAX" > "$RESULT/fmax.txt"
 echo ""

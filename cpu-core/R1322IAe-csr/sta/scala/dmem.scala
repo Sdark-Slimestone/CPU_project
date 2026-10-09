@@ -3,10 +3,24 @@ package R1322IAeCSR
 import chisel3._
 import chisel3.util._
 
-// 数据存储器 DMEM，支持两个 LSU 端口（读/写），内部合并写请求到唯一写端口
-// STA 评估版: 用 RegisterFile 寄存器阵列替换 DPI-C 的 pmem_read()/pmem_write() 访问,
-// 组合读、字节使能写; I/O 相关部分(ebreak 上报等)在主频评估中忽略
-// 仅用于 make sta 综合评估, 不参与日常 npc 构建 (日常构建用 DPI-C 软件RAM版)
+// 双端口同步 SRAM 宏黑盒 (2R1W, 见 fakeram45_2r1w_256x32.lib)
+class fakeram45_2r1w_256x32 extends BlackBox {
+  val io = IO(new Bundle {
+    val clk       = Input(Clock())
+    val we_in     = Input(Bool())
+    val ce_in     = Input(Bool())
+    val waddr_in  = Input(UInt(8.W))
+    val wd_in     = Input(UInt(32.W))
+    val w_mask_in = Input(UInt(32.W))
+    val raddr1    = Input(UInt(8.W))
+    val rdata1    = Output(UInt(32.W))
+    val raddr2    = Input(UInt(8.W))
+    val rdata2    = Output(UInt(32.W))
+  })
+  override def desiredName = "fakeram45_2r1w_256x32"
+}
+
+// 数据存储器 (STA SRAM 版): 单个 2R1W 同步 SRAM 宏, 2 读口 + 1 写口 (写请求端口1优先合并)。
 class dmem extends Module {
   val io = IO(new Bundle {
     val dmem_to_lsu_1 = new Bundle {
@@ -33,24 +47,24 @@ class dmem extends Module {
     val ebreak = Input(Bool())
   })
 
-  val register_file = Module(new RegisterFile)
-  register_file.io.io_clk := clock
+  def bitmask(m: UInt): UInt =
+    Cat(Fill(8, m(3)), Fill(8, m(2)), Fill(8, m(1)), Fill(8, m(0)))
 
-  // 写请求合并(与原设计一致: 端口1优先)
-  register_file.io.wen := io.lsu_to_dmem_1.wen || io.lsu_to_dmem_2.wen
-  register_file.io.waddr := Mux(io.lsu_to_dmem_1.wen,
-                                io.lsu_to_dmem_1.addr(9, 2),
-                                io.lsu_to_dmem_2.addr(9, 2))
-  register_file.io.wdata := Mux(io.lsu_to_dmem_1.wen,
-                                io.lsu_to_dmem_1.store_data,
-                                io.lsu_to_dmem_2.store_data)
-  register_file.io.wmask := Mux(io.lsu_to_dmem_1.wen,
-                                io.lsu_to_dmem_1.mask,
-                                io.lsu_to_dmem_2.mask)
+  val w_wen  = io.lsu_to_dmem_1.wen || io.lsu_to_dmem_2.wen
+  val w_addr = Mux(io.lsu_to_dmem_1.wen, io.lsu_to_dmem_1.addr,       io.lsu_to_dmem_2.addr)
+  val w_data = Mux(io.lsu_to_dmem_1.wen, io.lsu_to_dmem_1.store_data, io.lsu_to_dmem_2.store_data)
+  val w_mask = Mux(io.lsu_to_dmem_1.wen, io.lsu_to_dmem_1.mask,       io.lsu_to_dmem_2.mask)
 
-  // 组合读: 两个读端口(当前周期返回数据)
-  register_file.io.raddr1 := io.lsu_to_dmem_1.addr(9, 2)
-  register_file.io.raddr2 := io.lsu_to_dmem_2.addr(9, 2)
-  io.dmem_to_lsu_1.load_data := register_file.io.rdata1
-  io.dmem_to_lsu_2.load_data := register_file.io.rdata2
+  val mem = Module(new fakeram45_2r1w_256x32)
+  mem.io.clk       := clock
+  mem.io.we_in     := w_wen
+  mem.io.ce_in     := true.B
+  mem.io.waddr_in  := w_addr(9, 2)
+  mem.io.wd_in     := w_data
+  mem.io.w_mask_in := bitmask(w_mask)
+  mem.io.raddr1    := io.lsu_to_dmem_1.addr(9, 2)
+  mem.io.raddr2    := io.lsu_to_dmem_2.addr(9, 2)
+
+  io.dmem_to_lsu_1.load_data := mem.io.rdata1
+  io.dmem_to_lsu_2.load_data := mem.io.rdata2
 }

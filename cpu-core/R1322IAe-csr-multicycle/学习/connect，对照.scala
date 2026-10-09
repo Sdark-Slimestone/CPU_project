@@ -56,3 +56,9 @@ class StageConnectBridge[T <: Data](gen: T) extends Module {
     valid := false.B
   }
 }
+
+
+
+def 函数名[类型参数 <: 上界](参数名: 参数类型, 参数名: 参数类型 = 默认值): 返回类型 = {
+  函数体
+}
