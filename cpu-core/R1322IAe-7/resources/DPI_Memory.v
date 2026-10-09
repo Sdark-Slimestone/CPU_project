@@ -19,6 +19,7 @@ module vmem_rdport #(
     input         reqValid,
     input  [31:0] raddr,
     input  [15:0] reqTag,
+    input         reqBlock,      // step3: 本拍随机禁止接收 (由 DPI_Memory 共享产生)
     output        reqReady,
     output [31:0] rdata,
     output [15:0] respTag,
@@ -54,7 +55,7 @@ module vmem_rdport #(
 
     wire empty     = (cnt == 0);
     wire head_done = !empty && (d[0] == 0);
-    assign reqReady  = (cnt < DEPTH);
+    assign reqReady  = (cnt < DEPTH) && !reqBlock;
     assign respValid = head_done;
     assign rdata     = head_done ? pmem_read(a[0]) : 32'b0;
     assign respTag   = t[0];
@@ -127,7 +128,8 @@ module DPI_Memory #(
     parameter integer RANDOM  = 0,
     parameter integer MAXLAT  = 1,
     parameter integer DEPTH1  = 1,
-    parameter integer DEPTH2  = 1
+    parameter integer DEPTH2  = 1,
+    parameter integer RANDREQ = 0
 ) (
     input         wen,
     input  [31:0] waddr,
@@ -160,10 +162,20 @@ module DPI_Memory #(
     import "DPI-C" function void pmem_write(input int addr, input int data, input byte mask);
     import "DPI-C" function void sim_finish();
 
+    // step3 (slave 侧): 共享 LFSR, 随机把 reqReady 拉低 ("随机忙碌")。两口用同一个 req_block,
+    // 保证 imem 两读口 / dmem 两口每拍一致地接收或拒绝, 不会互相错位。
+    reg  [15:0] req_lfsr;
+    initial req_lfsr = 16'hBEEF;
+    wire req_block = (RANDREQ == 1) && (req_lfsr[1:0] == 2'b00);
+    always @(posedge io_clk) begin
+        if (flush) req_lfsr <= 16'hBEEF;
+        else       req_lfsr <= {req_lfsr[14:0], req_lfsr[15] ^ req_lfsr[13] ^ req_lfsr[12] ^ req_lfsr[10]};
+    end
+
     vmem_rdport #(.DEPTH(DEPTH1), .LATENCY(LATENCY), .RANDOM(RANDOM), .MAXLAT(MAXLAT), .SEED(16'hACE1))
       p1 (
         .clk(io_clk), .flush(flush),
-        .reqValid(reqValid1), .raddr(raddr1), .reqTag(reqTag1), .reqReady(reqReady1),
+        .reqValid(reqValid1), .raddr(raddr1), .reqTag(reqTag1), .reqBlock(req_block), .reqReady(reqReady1),
         .rdata(rdata1), .respTag(respTag1), .respValid(respValid1), .respReady(respReady1),
         .dbg_a0(dbg_a1), .dbg_d0(dbg_d1), .dbg_cnt(dbg_cnt1), .dbg_hd(dbg_hd1)
       );
@@ -171,7 +183,7 @@ module DPI_Memory #(
     vmem_rdport #(.DEPTH(DEPTH2), .LATENCY(LATENCY), .RANDOM(RANDOM), .MAXLAT(MAXLAT), .SEED(16'h5EED))
       p2 (
         .clk(io_clk), .flush(flush),
-        .reqValid(reqValid2), .raddr(raddr2), .reqTag(reqTag2), .reqReady(reqReady2),
+        .reqValid(reqValid2), .raddr(raddr2), .reqTag(reqTag2), .reqBlock(req_block), .reqReady(reqReady2),
         .rdata(rdata2), .respTag(respTag2), .respValid(respValid2), .respReady(respReady2)
       );
 

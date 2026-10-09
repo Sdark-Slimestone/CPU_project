@@ -42,7 +42,7 @@ class dmem extends Module {
     val dbg_cnt1 = Output(UInt(9.W))
   })
 
-  val memory = Module(new DPIMemory(MemCfg.latency, MemCfg.random, MemCfg.maxLat, 1, 1))
+  val memory = Module(new DPIMemory(MemCfg.latency, MemCfg.random, MemCfg.maxLat, 1, 1, if (MemCfg.randReq) 1 else 0))
   memory.io.io_clk := clock
   memory.io.reqValid1 := io.exu_to_dmem_1.ren
   memory.io.raddr1 := io.exu_to_dmem_1.addr

@@ -22,7 +22,7 @@ class imem extends Module {
   })
 
   val memory = Module(new DPIMemory(MemCfg.latency, MemCfg.random, MemCfg.maxLat,
-                                    MemCfg.depth, MemCfg.depth))
+                                    MemCfg.depth, MemCfg.depth, if (MemCfg.randReq) 1 else 0))
 
   memory.io.io_clk := clock
   memory.io.reqValid1 := io.ifu_reqValid

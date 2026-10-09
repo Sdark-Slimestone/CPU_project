@@ -17,6 +17,8 @@ object MemCfg {
   // 讲义 step 3: 在 IFU/LSU 侧也用 LFSR 随机化握手 ready 的时机 (随机插有效空泡),
   // 进一步压 SimpleBus 协议的健壮性。true = 开。
   val randValid: Boolean = true
+  // 讲义 step 3 (slave 侧): 存储器用 LFSR 随机把 reqReady 拉低 ("随机忙碌", 逼 master 重试)。true = 开。
+  val randReq: Boolean = true
 }
 
 //=================================== 可变延迟读握手 =========================================
@@ -24,13 +26,14 @@ object MemCfg {
 //   reqValid/raddr -> (reqReady 接受) -> ... -> respValid (data) -[respReady]-> 完成
 // 顶层 DPIMemory 黑盒把 DEPTH1/DEPTH2 等参数透传给 Verilog。
 class DPIMemory(val latency: Int = 1, val random: Int = 0, val maxLat: Int = 1,
-                val depth1: Int = 1, val depth2: Int = 1)
+                val depth1: Int = 1, val depth2: Int = 1, val randReq: Int = 0)
   extends BlackBox(Map(
     "LATENCY" -> IntParam(latency),
     "RANDOM"  -> IntParam(random),
     "MAXLAT"  -> IntParam(maxLat),
     "DEPTH1"  -> IntParam(depth1),
-    "DEPTH2"  -> IntParam(depth2))) {
+    "DEPTH2"  -> IntParam(depth2),
+    "RANDREQ" -> IntParam(randReq))) {
   val io = IO(new Bundle {
     val io_clk = Input(Clock())
     val wen    = Input(Bool())

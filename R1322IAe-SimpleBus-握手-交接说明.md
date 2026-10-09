@@ -79,25 +79,19 @@ MEM 侧（slave）:
 
 ---
 
-## 3. 讲义第 3 点（reqReady/respReady 随机延迟）—— 做了一半
+## 3. 讲义第 3 点（reqReady/respReady 随机延迟）—— 已完成
 
 | 信号 | 现状 |
 |---|---|
 | 存储器读延迟（`respValid` 时机）| ✅ 已随机：`DPI_Memory.v` 每口独立 LFSR，`delay=1..MAXLAT`（`-7` 的 `MemCfg.random/maxLat`）|
 | **`respReady` 随机延迟**（master 侧）| ✅ 已随机：`-7` 的 **step3**——top 里 16bit LFSR 产生 `randOk`(≈3/4 为 1)，`randOk=0` 那拍 IFU/LSU 不消费响应（`respReady` 拉低），逼存储器保持 `respValid` |
-| **`reqReady` 随机延迟**（slave 侧）| ❌ **还没做**。目前 `reqReady = cnt < DEPTH` 只会"满才背压"，不是随机拉低 |
+| **`reqReady` 随机延迟**（slave 侧）| ✅ 已随机：`-7` 的 `MemCfg.randReq`——`DPI_Memory.v` 里一个**共享** 16bit LFSR（`RANDREQ` 参数）随机把两读口的 `reqReady` 一起拉低（"随机忙碌"，逼 master 重试）|
 
-### 想补 `reqReady` 随机延迟，这样做（思路，未实现）
-在 `vmem_rdport` 里加一个 LFSR，把 `reqReady` 改成：
-```verilog
-reg [15:0] rlfsr;
-wire reqReady_random_block = (rlfsr[1:0] == 2'b00);   // 约 1/4 拍随机拒绝
-assign reqReady = (cnt < DEPTH) && !reqReady_random_block;
-```
-- 注意：`reqReady` 拉低**只影响吞吐、不影响正确性**（master 会重试）。但**别在已接收请求的同时拉低**，
-  只需"本拍不接受新请求"即可（上面写法：拉低时不 `do_push`，master 下拍重试同一请求）。
-- `-7` 的 `randOk` LFSR 位置：`cpu-core/R1322IAe-7/scala/top.scala`（搜 `randLfsr/randOk`）可作为模板。
-- 更"狠"的话：给 IFU、LSU 各配独立 LFSR（现在 `-7` 是 IFU/LSU 共用一个 `randOk`）。
+- **共享同一位是关键**：imem 两读口（成对取指）/ dmem 两口（lane1/lane2）每拍一致地接收或拒绝，
+  否则两口 `reqReady` 不一致会导致请求错位。
+- 三开（随机访存延迟 + `respReady` 随机 + `reqReady` 随机）下全部负载通过。
+- 相关代码：`cpu-core/R1322IAe-7/scala/top.scala`（搜 `randLfsr/randOk`，master 侧）、
+  `cpu-core/R1322IAe-7/resources/DPI_Memory.v`（搜 `RANDREQ/req_lfsr/req_block`，slave 侧）。
 
 ---
 
@@ -167,6 +161,9 @@ timeout 20 cpu-core/R1322IAe-8/npc-core/npc-prof test-benchmarks/rtthread/rtthre
    对比 -6/-7 时要**两个 lane 都打**；且注意"双发射交织"会造成同一条回边循环的相位差，不是真分歧。
 9. **STA 版存储器要与 top 接口对齐**：`make sta` 会用 `sta/scala/{imem,dmem}.scala` 覆盖主版本。
    改了 top 的握手端口后，别忘了同步 sta 版（本轮给 `-7/-8` 的 sta imem/dmem 补过 `reqReady/respValid/respReady/reqTag/respTag` 和 `dbg_*`）。
+10. **给存储器两读口加随机 `reqReady` 时，两口必须用"同一个"随机位**：imem 是成对取指、dmem 是
+    lane1/lane2，若两口 `reqReady` 各自随机就会不一致 → 一个口接收、另一个不接收 → 请求错位。
+   `-7` 的做法：LFSR 放在 `DPI_Memory` 顶层产生一个共享 `req_block`，两口都用它（见 `DPI_Memory.v`）。
 
 ---
 
