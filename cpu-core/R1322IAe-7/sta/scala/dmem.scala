@@ -28,10 +28,12 @@ class dmem extends Module {
     val exu_to_dmem_1 = new Bundle {
       val addr = Input(UInt(32.W))
       val ren  = Input(Bool())
+      val tag  = Input(UInt(16.W))
     }
     val exu_to_dmem_2 = new Bundle {
       val addr = Input(UInt(32.W))
       val ren  = Input(Bool())
+      val tag  = Input(UInt(16.W))
     }
 
     val lsu_to_dmem_1 = new Bundle {
@@ -50,8 +52,19 @@ class dmem extends Module {
     // 原始读数据 (M 级), 交给 StoreBuffer 做转发合并
     val dmem_rdata_1 = Output(UInt(32.W))
     val dmem_rdata_2 = Output(UInt(32.W))
+    // SimpleBus 握手 (STA 版按常量接)
+    val load_respValid_1 = Output(Bool())
+    val load_respValid_2 = Output(Bool())
+    val load_respTag_1   = Output(UInt(16.W))
+    val load_respTag_2   = Output(UInt(16.W))
+    val load_respReady_1 = Input(Bool())
+    val load_respReady_2 = Input(Bool())
 
     val ebreak = Input(Bool())
+    val flush  = Input(Bool())
+    val dbg_a1   = Output(UInt(32.W))
+    val dbg_hd1  = Output(Bool())
+    val dbg_cnt1 = Output(UInt(9.W))
   })
 
   def bitmask(m: UInt): UInt =
@@ -75,4 +88,11 @@ class dmem extends Module {
 
   io.dmem_rdata_1 := mem.io.rdata1
   io.dmem_rdata_2 := mem.io.rdata2
+  io.load_respValid_1 := true.B
+  io.load_respValid_2 := true.B
+  io.load_respTag_1   := io.exu_to_dmem_1.tag
+  io.load_respTag_2   := io.exu_to_dmem_2.tag
+  io.dbg_a1   := 0.U
+  io.dbg_hd1  := false.B
+  io.dbg_cnt1 := 0.U
 }

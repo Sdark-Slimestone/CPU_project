@@ -42,11 +42,18 @@ class fakeram45_256x34 extends BlackBox {
 // 注意: 宏为同步读, 数据晚一拍返回 —— 为保持 5 周期, IFU 需提前一拍发起读。
 class imem extends Module {
   val io = IO(new Bundle {
-    // SimpleBus 取指读接口 (本拍发 raddr, 下一拍回 rdata)
+    // SimpleBus 取指读接口 (STA 版: 握手信号按"总是就绪/有效"接常量, 只求可综合)
     val ifu_raddr  = Input(UInt(32.W))
     val ifu_raddr2 = Input(UInt(32.W))
     val ifu_rdata  = Output(UInt(32.W))
     val ifu_rdata2 = Output(UInt(32.W))
+    val ifu_reqValid  = Input(Bool())
+    val ifu_reqReady  = Output(Bool())
+    val ifu_respValid = Output(Bool())
+    val ifu_respReady = Input(Bool())
+    val ifu_flush     = Input(Bool())
+    val dbg_a1        = Output(UInt(32.W))
+    val dbg_hd1       = Output(Bool())
   })
 
   val mem1 = Module(new fakeram45_256x34)
@@ -63,4 +70,8 @@ class imem extends Module {
 
   io.ifu_rdata  := mem1.io.rd_out(31, 0)
   io.ifu_rdata2 := mem2.io.rd_out(31, 0)
+  io.ifu_reqReady  := true.B
+  io.ifu_respValid := true.B
+  io.dbg_a1  := 0.U
+  io.dbg_hd1 := false.B
 }

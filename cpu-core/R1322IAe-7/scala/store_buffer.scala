@@ -10,7 +10,7 @@ import chisel3.util._
 //   期间 buffer 每拍平移, 需保证相关 store 还在窗口内。
 // 优先级 (每字节取最年轻的写者): 同包 lane1 store (对 lane2) > entry0(最年轻) > ... > entryN-1 > 内存
 class StoreBuffer extends Module {
-  val N = math.max(math.max(MemCfg.latency, MemCfg.depth + MemCfg.maxLat) + 8, 16)
+  val N = math.max(MemCfg.latency, 2)
   val io = IO(new Bundle {
     val push_valid = Input(Bool())
     val push_addr  = Input(UInt(32.W))

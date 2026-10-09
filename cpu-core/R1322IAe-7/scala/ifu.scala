@@ -74,6 +74,7 @@ class IFU extends Module {
     val push_pc    = Output(Vec(2, UInt(32.W)))
     val push_pred  = Output(Vec(2, new PredInfo))
     val push_ready = Input(Bool())
+    val randOk     = Input(Bool())        // step3: LFSR 随机握手 (0 时本拍不消费响应)
 
     val debug = new Bundle {
       val inst1_pc = Output(UInt(32.W))
@@ -152,15 +153,17 @@ class IFU extends Module {
   when (io.redirect)   { pcIssue := io.redirect_pc }
 
   // 响应: 两读口都有效才压入队列; push_ready 才消费 (respReady 同时给两读口)。
-  io.push_valid := io.ifu_respValid
+  // step3: randOk=0 时本拍不消费 (存储器保持 respValid), 只插空泡。
+  val consume = io.ifu_respValid && io.push_ready && io.randOk
+  io.push_valid := io.ifu_respValid && io.randOk
   io.push_num   := metaDeq.bits.num
   io.push_inst(0) := io.ifu_rdata
   io.push_inst(1) := io.ifu_rdata2
   io.push_pc(0)   := metaDeq.bits.pc
   io.push_pc(1)   := metaDeq.bits.pc + 4.U
   io.push_pred    := metaDeq.bits.pred
-  io.ifu_respReady := io.ifu_respValid && io.push_ready
-  metaDeq.ready    := io.ifu_respValid && io.push_ready
+  io.ifu_respReady := consume
+  metaDeq.ready    := consume
 
   io.debug.inst1_pc := metaDeq.bits.pc
   io.debug.inst2_pc := metaDeq.bits.pc + 4.U

@@ -155,6 +155,14 @@ class top extends Module {
   val mdu   = Module(new MDU)
   val sb   = Module(new StoreBuffer)
 
+  // ===================== 讲义 step3: IFU/LSU 侧 LFSR 随机化握手 ready =====================
+  // 随机把"能接收响应那拍"推迟 (插有效空泡), 逼存储器把 respValid 保持住。
+  // randOk=1 才允许消费 respReady; 被推迟时不消费、不前进。
+  val randLfsr = RegInit(0xACE1.U(16.W))
+  randLfsr := Cat(randLfsr(14, 0), randLfsr(15) ^ randLfsr(13) ^ randLfsr(12) ^ randLfsr(10))
+  val randOk: Bool = if (MemCfg.randValid) (randLfsr(1, 0) =/= 0.U) else true.B
+  ifu.io.randOk := randOk
+
   // ===================== IFU <-> IMEM =====================
   imem.io.ifu_raddr  := ifu.io.ifu_raddr
   imem.io.ifu_raddr2 := ifu.io.ifu_raddr2
@@ -319,10 +327,13 @@ class top extends Module {
   val e_load2 = e2.valid && e2.bits.ctrl.is_load && !kill2_now
   // E 级 load 等到本读口 respValid 且 tag 回配一致才放行。tag 保证只取「本 load 自己」的响应:
   // 被重定向杀掉的错路径 load 留下的孤儿响应 tag 不匹配 -> 丢弃 (respReady 总是排空), 不误伤正确 load。
-  val ld_match1 = dmem.io.load_respValid_1 && (dmem.io.load_respTag_1 === e1.bits.ldTag)
-  val ld_match2 = dmem.io.load_respValid_2 && (dmem.io.load_respTag_2 === e2.bits.ldTag)
-  val load_wait1 = e_load1 && !ld_match1
-  val load_wait2 = e_load2 && !ld_match2
+  // step3: 本 load 的响应已就绪时, randOk=0 则本拍不消费 (存储器保持 respValid), 随机插空泡。
+  val ld_for_me1 = dmem.io.load_respValid_1 && (dmem.io.load_respTag_1 === e1.bits.ldTag) && e_load1
+  val ld_for_me2 = dmem.io.load_respValid_2 && (dmem.io.load_respTag_2 === e2.bits.ldTag) && e_load2
+  val ld_consume1 = ld_for_me1 && randOk
+  val ld_consume2 = ld_for_me2 && randOk
+  val load_wait1 = e_load1 && !ld_consume1
+  val load_wait2 = e_load2 && !ld_consume2
   val mem_stall: Bool = load_wait1 || load_wait2
   val pipe_stall = mdu_stall || mem_stall
   exu1.io.stall := pipe_stall
@@ -534,12 +545,11 @@ class top extends Module {
   dmem.io.ebreak := lsu1.io.ebreak_out || lsu2.io.ebreak_out
   // load 响应在 E 级响应有效那拍锁存数据并立即消费 (respReady), 保证读口总能排空;
   // 锁存值经 StoreBuffer 转发合并后作为该 load 的读回值 (与其到 M 的时机解耦)。
-  dmem.io.load_respReady_1 := dmem.io.load_respValid_1
-  dmem.io.load_respReady_2 := dmem.io.load_respValid_2
-  val ld_data1 = RegEnable(dmem.io.dmem_rdata_1,
-                           dmem.io.load_respValid_1 && e_load1 && (dmem.io.load_respTag_1 === e1.bits.ldTag))
-  val ld_data2 = RegEnable(dmem.io.dmem_rdata_2,
-                           dmem.io.load_respValid_2 && e_load2 && (dmem.io.load_respTag_2 === e2.bits.ldTag))
+  // load 响应: 本 load 的且 randOk=1 才锁存并消费; 其余 (孤儿/随机推迟拍) 按 respReady 排空或保持。
+  dmem.io.load_respReady_1 := dmem.io.load_respValid_1 && !(ld_for_me1 && !randOk)
+  dmem.io.load_respReady_2 := dmem.io.load_respValid_2 && !(ld_for_me2 && !randOk)
+  val ld_data1 = RegEnable(dmem.io.dmem_rdata_1, ld_consume1)
+  val ld_data2 = RegEnable(dmem.io.dmem_rdata_2, ld_consume2)
 
   // ===================== StoreBuffer (store->load 转发) =====================
   // 压入 M 级 store (lane1 优先), 查询 M 级 load 地址 (M 级消息携带), 合并内存读值

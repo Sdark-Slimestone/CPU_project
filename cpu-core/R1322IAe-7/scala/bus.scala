@@ -14,6 +14,9 @@ object MemCfg {
   val random:  Int = 1
   val maxLat:  Int = 20
   val depth:   Int = 16
+  // 讲义 step 3: 在 IFU/LSU 侧也用 LFSR 随机化握手 ready 的时机 (随机插有效空泡),
+  // 进一步压 SimpleBus 协议的健壮性。true = 开。
+  val randValid: Boolean = true
 }
 
 //=================================== 可变延迟读握手 =========================================
