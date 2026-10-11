@@ -8,6 +8,20 @@
 
 ---
 
+## 0+. 傻瓜命令（一条命令搞定 RT + NVBoard）
+
+```bash
+cd ~/cpu_project
+./run-soc.sh                 # 默认 R1322IAe-13 → RT-Thread + NVBoard
+./run-soc.sh R1322IAe-csr    # 手写单周期核
+```
+自动：生成该核 flash 启动 RTL → 构建 NVBoard → 打开窗口并从 flash 启动 RT-Thread。
+窗口里等 `msh />`，点串口终端聚焦 → 敲 `am_snake` 回车即可。
+
+下面的章节是它的原理与手动步骤（想了解细节再看）。
+
+---
+
 ## 0. 前提与总览
 
 | 组件 | 位置 / 说明 |

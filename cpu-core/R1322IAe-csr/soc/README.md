@@ -21,12 +21,16 @@
 
 ## 构建 / 运行
 ```bash
+# 傻瓜命令(推荐): 仓库根目录一条命令启动 RT-Thread + NVBoard
+cd ~/cpu_project && ./run-soc.sh R1322IAe-csr
+
+# 手动: 命令行 SoC 仿真 (MROM 启动)
 cd cpu-core/R1322IAe-csr/soc
 bash build_soc.sh                 # 自动 gen_core.sh(YSYX_SOC=1) + verilator -> obj_dir/sim_soc
 ./obj_dir/sim_soc <prog.bin>      # 程序按 riscv32e-ysyxsoc 平台编译(MROM 启动, resetPC=0x2000_0000)
 ```
 `gen_core.sh` 会 `make deploy-core core=R1322IAe-csr` 后以 `YSYX_SOC=1` 运行 sbt 生成
-SoC 兼容顶层（`ysyx_26030107`），装到 `soc/rtl/`。
+SoC 兼容顶层（`ysyx_26030107`），装到 `soc/rtl/`（并派生 flash 变体 `soc/rtl_flash/`）。
 
 ## 验证
 `cpu-tests`（`sum/dummy/unalign/fib/quick-sort/string/to-lower-case/...`）在 ysyxSoC 上

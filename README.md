@@ -96,6 +96,24 @@ cpu-core/<核心名>/
 
 ## 快速开始
 
+### 一键启动 RT-Thread + NVBoard（傻瓜命令）
+
+把某个核接上 ysyxSoC 并在 NVBoard 虚拟开发板上启动 RT-Thread：
+
+```bash
+./run-soc.sh                 # 默认核心 R1322IAe-13
+./run-soc.sh R1322IAe-csr    # 手写单周期核
+```
+
+脚本会自动：① 生成该核的 flash 启动 RTL（`cpu-core/<core>/soc/rtl_flash`）
+→ ② 构建 NVBoard 仿真 → ③ 打开 NVBoard 窗口并从 flash 启动 RT-Thread。
+
+窗口出现后：等右上角**串口终端**出现 `msh />`，点它聚焦，敲 `am_snake` 回车即可玩贪吃蛇
+（用 NVBoard 的 PS/2 键盘；点 VGA 区域让终端失焦后键盘才走 PS/2）。
+
+> 可选覆盖：`RTBIN=<RT镜像>`、`NVBOARD_HOME=<nvboard目录>`、`DISPLAY=:0`。
+> 详细说明见 `R1322IAe-RT-Thread-运行说明.md` 与各核 `cpu-core/<core>/soc/README.md`。
+
 ### 0. 初始化环境
 
 ```bash
