@@ -34,5 +34,7 @@ SoC 兼容顶层（`ysyx_26030107`），装到 `soc/rtl/`。
 
 ## 备注
 - 本核 `marchid`（学号标识）当前为 `0x018a9e3b`，可按需在 `csr.scala` 改成你的学号。
-- 尚可扩展：CLINT 未纳入（本核不含 CLINT；用到定时器的 AM 程序需补一个 CLINT），
-  flash/PSRAM 启动等（目前走 MROM）。
+- **CLINT**：兼容层内建了 `mtime`（读 `0x0200_bff8/bffc` 本地应答，不走 SoC），供 AM 定时器使用；
+  `timer2-test`（读 `AM_TIMER_UPTIME`）通过。RT-Thread 的 `date` 可运行（RTC 那条提示是 AM 的
+  `__am_timer_rtc` 固定返回 1900，与 CLINT 无关）。
+- 尚可扩展：flash/PSRAM 启动已支持（`YSYX_RESET_PC=30000000`）；NVBoard 集成等。

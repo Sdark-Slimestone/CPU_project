@@ -122,27 +122,44 @@ class csr_axi_mem extends Module {
   val wFire  = io.axi.wvalid && io.axi.wready
   val bFire  = io.axi.bvalid && io.axi.bready
 
+  // ---- 内部 CLINT 的 mtime (AM 定时器读 0x0200_bff8/bffc), 不走 SoC ----
+  val clintCnt = RegInit(0.U(64.W))
+  clintCnt := clintCnt + 1.U
+  val isClint = (addr & "hFFFF0000".U) === "h02000000".U
+  val clintV  = Mux(addr === "h0200bff8".U, clintCnt(31, 0),
+                Mux(addr === "h0200bffc".U, clintCnt(63, 32),
+                Mux(addr === "h02000000".U, clintCnt(31, 0), 0.U)))  // mtimecmp 低字读作 mtime(可忽略)
+
   when (state === 0.U) {
     // START: 锁存取指地址 (核心此拍已冻结, pc 稳定)
     a1 := io.imem_a1; a2 := io.imem_a2
     phase := 0.U; state := 1.U
   } .elsewhen (isRead) {
-    when (phase === 0.U) {
-      io.axi.arvalid := true.B
-      when (arFire) { phase := 1.U }
+    when (isClint) {
+      // CLINT 本地应答 (不占用 AXI, 直接返回 mtime)
+      when (state === 1.U) { im1 := clintV }
+      .elsewhen (state === 2.U) { im2 := clintV }
+      .elsewhen (state === 4.U) { d1 := clintV }
+      .otherwise { d2 := clintV }
+      phase := 0.U
+      when (state === 5.U) { state := Mux(wren, 6.U, 7.U) } .otherwise { state := state + 1.U }
     } .otherwise {
-      io.axi.rready := true.B
-      when (rFire) {
-        when (state === 1.U) { im1 := io.axi.rdata }
-        .elsewhen (state === 2.U) { im2 := io.axi.rdata }
-        .elsewhen (state === 4.U) { d1 := io.axi.rdata }
-        .otherwise { d2 := io.axi.rdata }
-        phase := 0.U
-        when (state === 5.U) {
-          // DR2 完成: 有写才进写步, 否则直接 CONSUME (避免对只读器件发空写)
-          state := Mux(wren, 6.U, 7.U)
-        } .otherwise {
-          state := state + 1.U           // 1->2, 2->3, 4->5
+      when (phase === 0.U) {
+        io.axi.arvalid := true.B
+        when (arFire) { phase := 1.U }
+      } .otherwise {
+        io.axi.rready := true.B
+        when (rFire) {
+          when (state === 1.U) { im1 := io.axi.rdata }
+          .elsewhen (state === 2.U) { im2 := io.axi.rdata }
+          .elsewhen (state === 4.U) { d1 := io.axi.rdata }
+          .otherwise { d2 := io.axi.rdata }
+          phase := 0.U
+          when (state === 5.U) {
+            state := Mux(wren, 6.U, 7.U)
+          } .otherwise {
+            state := state + 1.U
+          }
         }
       }
     }
