@@ -5,6 +5,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 YSYXSOC=/home/sdark/ysyx-workbench/ysyxSoC
 PERIP="$YSYXSOC/perip"
 
+# 确保核心 RTL 最新 (改 cpu-core/R1322IAe-13/scala 后自动重新生成 rtl/ 与 rtl_flash/)
+bash "$HERE/gen_core.sh"
+
 TOP=ysyxSoCTop
 OBJ="$HERE/obj_dir"
 rm -rf "$OBJ"

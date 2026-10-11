@@ -25,3 +25,4 @@ cpu-core/*/soc/nvboard/build/
 cpu-core/*/soc/nvboard/build_flash/
 cpu-core/*/soc/rtl_flash/
 cpu-core/*/soc/chiplink/
+cpu-core/*/soc/rtl/
