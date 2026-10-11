@@ -19,3 +19,9 @@ temper_npc/
 yosys-sta/result/
 yosys-sta/bin/
 yosys-sta/pdk/
+# SoC (ysyxSoC) 仿真 / NVBoard 构建产物
+cpu-core/*/soc/obj_dir*/
+cpu-core/*/soc/nvboard/build/
+cpu-core/*/soc/nvboard/build_flash/
+cpu-core/*/soc/rtl_flash/
+cpu-core/*/soc/chiplink/
