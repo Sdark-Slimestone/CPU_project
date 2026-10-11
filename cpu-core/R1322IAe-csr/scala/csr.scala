@@ -72,7 +72,7 @@ class CSR extends Module {
 
   // ============== CSR 寄存器 ==============
   val mvendorid = 0x79737978L.U(32.W)
-  val marchid   = 0x018A9E3B.U(32.W)
+  val marchid   = 0x018D301B.U(32.W)   // 学号标识 26030107 (与 R1322IAe-13 一致)
   val mimpid    = 0.U(32.W)
   val mhartid   = 0.U(32.W)
 
