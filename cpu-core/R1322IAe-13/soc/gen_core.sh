@@ -37,6 +37,7 @@ fi
 
 echo "[gen_core] 部署并生成核心 Verilog: $CORE"
 rm -rf "$ROOT/MyChisel/verilog" "$ROOT/MyChisel/src/main"
+rm -f  "$ROOT"/MyChisel/*.sv          # 清掉散落生成物, 避免多核之间串味
 ( cd "$ROOT" && make deploy-core core="$CORE" && make genv )
 
 echo "[gen_core] 安装到 soc/rtl ..."

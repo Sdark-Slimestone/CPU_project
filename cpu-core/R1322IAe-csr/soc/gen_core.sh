@@ -23,6 +23,7 @@ fi
 
 echo "[gen_core] 部署并生成 SoC 兼容顶层: $CORE (YSYX_SOC=1, resetPC=0x$RST_PC)"
 rm -rf "$ROOT/MyChisel/verilog" "$ROOT/MyChisel/src/main"
+rm -f  "$ROOT"/MyChisel/*.sv          # 清掉散落生成物, 避免多核之间串味
 ( cd "$ROOT" && make deploy-core core="$CORE" )
 ( cd "$ROOT/MyChisel" && YSYX_SOC=1 YSYX_RESET_PC="$RST_PC" sbt -batch run )
 
