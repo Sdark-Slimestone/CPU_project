@@ -89,6 +89,7 @@ int main(int argc, char **argv) {
     for (; c < MAX_CYCLES && !Verilated::gotFinish() && !sim_finished; c++) {
         top->clock = 0; top->eval();
         top->clock = 1; top->eval();
+        if ((c % 50000000L) == 0 && c != 0) printf("[PROG] %ld cycles\n", c);
     }
     printf("[INFO] finished %ld cycles\n", c);
     if (sim_haltcode == 0)        printf("[HIT GOOD TRAP]\n");
