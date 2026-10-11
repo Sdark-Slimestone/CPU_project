@@ -29,7 +29,7 @@ $(SRC_AUTO_BIND): $(NXDC_FILES)
 	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
 
 # 本核 RTL + ysyxSoC 外设
-VSRCS  = $(RTL_DIR)/*.sv $(ROOT)/ysyxSoCFull.v $(shell find $(PERIP) -name '*.v')
+VSRCS  = $(RTL_DIR)/*.sv $(RTL_DIR)/*.v $(ROOT)/ysyxSoCFull.v $(shell find $(PERIP) -name '*.v')
 CSRCS  = $(wildcard csrc/*.cpp)
 CSRCS += $(SRC_AUTO_BIND)
 
