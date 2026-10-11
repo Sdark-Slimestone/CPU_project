@@ -252,8 +252,23 @@ class top extends Module {
 }
 
 object top extends App {
-  ChiselStage.emitSystemVerilogFile(
-    new top,
-    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info", "-default-layer-specialization=enable")
-  )
+  // ===================== SoC 兼容层开关 (注释包裹, 默认行为不变) =====================
+  // 设环境变量 YSYX_SOC=1 时, 生成"本体子模块 + AXI 桥 + 时钟门控"的 SoC 顶层
+  // ysyx_26030107 (实现见同目录 soc_compat.scala), 供接入 ysyxSoC 使用;
+  // 不设时, 生成原来的仿真用顶层 top。本体 RTL 逻辑未改动。
+  // ==================================================================================
+  if (sys.env.get("YSYX_SOC").isDefined) {
+    // 兼容层: 可用 YSYX_RESET_PC 覆盖复位 PC (默认 0x8000_0000), 接 SoC 时设为 0x2000_0000
+    sys.env.get("YSYX_RESET_PC").foreach(s => BootCfg.resetPC = BigInt(s, 16))
+    ChiselStage.emitSystemVerilogFile(
+      new ysyx_26030107,
+      firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info", "-default-layer-specialization=enable")
+    )
+  } else {
+    // ---- 原代码 (未改动) ----
+    ChiselStage.emitSystemVerilogFile(
+      new top,
+      firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info", "-default-layer-specialization=enable")
+    )
+  }
 }

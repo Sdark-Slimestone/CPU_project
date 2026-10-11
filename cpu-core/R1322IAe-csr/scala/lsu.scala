@@ -49,6 +49,12 @@ class LSU extends Module {
 
     val ebreak_out = Output(Bool())
 
+    // ===================== SoC 兼容层新增 (注释包裹, 原逻辑不变) =====================
+    // 暴露 load 宽度 (0=1B, 1=2B, 2=4B), 供 AXI 桥设置 arsize 以支持"字节间隔的设备寄存器"
+    // (如 UART 的 LSR @ offset5)。原仿真/npc 不使用该信号, 不影响原行为。
+    val lsu_load_size = Output(UInt(2.W))
+    // =============================================================================
+
     val debug = new Bundle {
       val is_load            = Output(Bool())
       val is_store           = Output(Bool())
@@ -122,6 +128,16 @@ class LSU extends Module {
 
   // ebreak 透传
   io.ebreak_out := io.exu_to_lsu.op.is_ebreak
+
+  // ===================== SoC 兼容层新增 (注释包裹, 原逻辑不变) =====================
+  io.lsu_load_size := MuxCase(0.U(2.W), Seq(
+    io.exu_to_lsu.op.is_lw  -> 2.U(2.W),
+    io.exu_to_lsu.op.is_lh  -> 1.U(2.W),
+    io.exu_to_lsu.op.is_lhu -> 1.U(2.W),
+    io.exu_to_lsu.op.is_lb  -> 0.U(2.W),
+    io.exu_to_lsu.op.is_lbu -> 0.U(2.W)
+  ))
+  // =============================================================================
 
   // debug
   io.debug.is_load            := is_load

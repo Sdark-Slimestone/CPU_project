@@ -53,7 +53,11 @@ class IFU extends Module {
   })
 
   //  jal/jalr/br 指令只能作为第一条指令进行单发射
-  val pcReg   = RegInit("h80000000".U(32.W))
+  // ===================== SoC 兼容层改动 (注释包裹, 默认行为不变) =====================
+  // 复位 PC 改为可配置: 默认仍是 0x8000_0000 (仿真/npc 不变); 接 ysyxSoC 时
+  // 由 compat 顶层把 BootCfg.resetPC 设为 0x2000_0000 (MROM) 等。逻辑未改动。
+  // =================================================================================
+  val pcReg   = RegInit(BootCfg.resetPC.U(32.W))
   val pcPlus4 = pcReg + 4.U
   val pcPlus8 = pcReg + 8.U
 
